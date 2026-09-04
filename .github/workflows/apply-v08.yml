@@ -1,0 +1,56 @@
+name: Apply v0.8 terrain modifiers
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-v08.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch movement rules and trees
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('index.html')
+          s=p.read_text()
+          s=s.replace('Web Prototype 0.7 Clear Paths','Web Prototype 0.8 Terrain Modifiers')
+          s=s.replace('web prototype 0.7 clear paths · 28 × 22 pencil-grid journey','web prototype 0.8 terrain modifiers · 28 × 22 pencil-grid journey')
+          s=s.replace('Obstacle terrain is denser now, but every mountain and forest mass has an open way around it. Going around is safer and cheaper; cutting through is shorter but costs more movement. Open 1 · Forest 2 · Mountain 3 · bridges cross normally · rivers interrupt movement.','Obstacle terrain is denser, but every mountain and forest mass has an open way around it. Open ground has no modifier. Forest gives −1 movement; mountains give −2. Every fresh roll always allows at least 1 move. Entering a new terrain type partway through a move applies its modifier immediately.')
+          s=s.replace('Reach the ruined tower alive. Forest squares cost 2 movement and mountain squares cost 3. A fresh roll still guarantees one legal step. The map now uses denser obstacle islands, but each one leaves a visible route around it, so a longer low-cost path always exists.','Reach the ruined tower alive. Roll d6 for movement. If the turn begins in forest, subtract 1; if it begins in mountains, subtract 2; the result can never be lower than 1. If you enter forest or mountains partway through a move, apply that terrain modifier immediately to the movement you have left. The modifier applies once when that terrain becomes active, not once per square.')
+          s=s.replace("function stepCost(t){return t==='forest'?2:t==='mountain'?3:1}\nfunction terrainPenalty(t){return t==='forest'?1:t==='mountain'?2:0}","function terrainPenalty(t){return t==='forest'?1:t==='mountain'?2:0}")
+          tree_old="""   const cx=x*S+16+jitter(i,2.2), b=y*S+29+jitter(i+10,1.4), top=b-(22+jitter(i+20,2.5)), w=8+jitter(i+30,1.2);\n   svg.append(svgEl('path',{d:`M ${cx} ${b} L ${cx} ${top+7}`,...pencil,'stroke-width':'1'}));\n   [0,4,8,12,16].forEach((off,idx)=>{const yy=top+off, ww=w*(1-idx*0.12)+jitter(i+idx,0.6); svg.append(svgEl('path',{d:`M ${cx} ${yy} L ${cx-ww} ${yy+5} L ${cx-ww*0.16} ${yy+4} M ${cx} ${yy} L ${cx+ww*0.92} ${yy+5} L ${cx+ww*0.14} ${yy+4}`,...pencil,'stroke-width':idx===0?'1.05':'1'}));});\n   if(i%3===0) svg.append(svgEl('path',{d:`M ${cx-10} ${b+3} q 6 1 12 0`,...faint,'stroke-width':'.55'}));"""
+          tree_new="""   const cx=x*S+16+jitter(i,2.0), b=y*S+29+jitter(i+10,1.2), top=b-(23+jitter(i+20,2.2)), w=9+jitter(i+30,1.1);\n   svg.append(svgEl('path',{d:`M ${cx} ${b} L ${cx} ${top+5}`,...pencil,'stroke-width':'1'}));\n   [0,4,8,12,16].forEach((off,idx)=>{\n     const yy=top+off, ww=w*(0.42+idx*0.16)+jitter(i+idx,0.45);\n     svg.append(svgEl('path',{d:`M ${cx} ${yy} L ${cx-ww} ${yy+5} L ${cx-ww*0.18} ${yy+4} M ${cx} ${yy} L ${cx+ww*0.92} ${yy+5} L ${cx+ww*0.16} ${yy+4}`,...pencil,'stroke-width':idx===4?'1.05':'1'}));\n   });\n   svg.append(svgEl('path',{d:`M ${cx-w*0.9} ${b-1} Q ${cx} ${b+2} ${cx+w*0.9} ${b-1}`,...faint,'stroke-width':'.5'}));\n   if(i%3===0) svg.append(svgEl('path',{d:`M ${cx-9} ${b+3} q 5 1 10 0`,...faint,'stroke-width':'.5'}));"""
+          if tree_old not in s: raise SystemExit('tree block not found')
+          s=s.replace(tree_old,tree_new,1)
+          new_move="""function attemptMove(x,y){\n if(!canAct()||x<0||y<0||x>=W||y>=H)return;\n if(Math.abs(x-player.x)+Math.abs(y-player.y)!==1)return;\n const oldT=moveTerrain(tAt(player.x,player.y));\n const rawT=tAt(x,y);\n if(rawT==='river'){beginRiver(x-player.x,y-player.y);return}\n const newT=moveTerrain(rawT);\n player={x,y};\n move=Math.max(0,move-1);\n stepsThisRoll++;\n let entryPenalty=0;\n if(newT!==oldT && newT!=='open'){\n   entryPenalty=terrainPenalty(newT);\n   move=Math.max(0,move-entryPenalty);\n }\n if(entryPenalty>0){\n   msg(`Entered ${terrainName(newT)}: terrain modifier −${entryPenalty}. ${move} movement remaining.`);\n   note(`Entered ${terrainName(newT)}. Applied −${entryPenalty} movement modifier.`);\n } else {\n   msg(`Moved 1 square. ${move} movement remaining.`);\n   note(`Moved 1 square through ${terrainName(newT).toLowerCase()} terrain.`);\n }\n if(x===dest.x&&y===dest.y){done=true;ending(true);render();save();return}\n if(move===0)endTurn();render();save()\n}\n"""
+          s,n=re.subn(r'function attemptMove\(x,y\)\{.*?\n\}\n(?=map\.addEventListener)',lambda m:new_move,s,1,flags=re.S)
+          if n!=1: raise SystemExit('movement function not found')
+          old_roll="$('roll').addEventListener('click',()=>{if(done||enc||riverAttempt||move)return;last=die();move=last;stepsThisRoll=0;const text=`Rolled ${last}. You have ${move} movement. Terrain costs apply as soon as you enter each square.`;msg(text);note(text);render();save()});"
+          new_roll="$('roll').addEventListener('click',()=>{if(done||enc||riverAttempt||move)return;last=die();stepsThisRoll=0;const startT=moveTerrain(tAt(player.x,player.y));const penalty=terrainPenalty(startT);move=Math.max(1,last-penalty);const modText=penalty?` ${terrainName(startT)} −${penalty}.`:'';const text=`Rolled ${last}.${modText} Move ${move}.`;msg(text);note(text);render();save()});"
+          if old_roll not in s: raise SystemExit('roll handler not found')
+          s=s.replace(old_roll,new_roll,1)
+          s=s.replace('For prototype 0.7 clear paths, that is victory.','For prototype 0.8 terrain modifiers, that is victory.')
+          s=s.replace("'pbq07clean'","'pbq08clean'")
+          p.write_text(s)
+          PY
+      - name: Check JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text()
+          m=re.search(r'<script>(.*?)</script>',s,re.S)
+          Path('/tmp/game.js').write_text(m.group(1))
+          PY
+          node --check /tmp/game.js
+      - name: Commit v0.8
+        run: |
+          git config user.name "Posterboard Quest Updater"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Fix terrain movement and redraw trees"
+          git push
