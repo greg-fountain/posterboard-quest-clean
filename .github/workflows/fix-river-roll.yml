@@ -1,0 +1,31 @@
+name: Fix river roll
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-river-roll.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix river roll handler
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text()
+          old = "let r=die();river.r=r,a=riverResults[r];"
+          new = "let r=die();river.r=r;let a=riverResults[r];"
+          if old not in s:
+              raise SystemExit('Target code not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "Posterboard Quest Fix"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Fix river crossing roll button"
+          git push
