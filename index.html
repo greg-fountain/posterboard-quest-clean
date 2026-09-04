@@ -1,2 +1,211 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#eee3c4"><title>Posterboard Quest — Web Prototype 0.6 Clean</title><style>:root{--paper:#eee3c4;--paper2:#f8efd7;--ink:#2e2a23}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}body{font-family:Georgia,serif}button{font:700 16px system-ui;color:var(--ink);background:#fff8e8;border:1px solid #665e4d;border-radius:10px;min-height:48px;padding:10px 14px}button:disabled{opacity:.42}.primary{background:var(--ink);color:white}#app{max-width:960px;margin:auto;padding:10px}header{text-align:center}h1{font-size:25px;margin:4px}.subtitle{font:12px system-ui;opacity:.68}.stats{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;font:600 13px system-ui;margin:8px}.pill{background:#ffffff70;border:1px solid #8a806b;border-radius:999px;padding:6px 10px}#message{min-height:42px;font:15px system-ui}.viewport{height:55vh;min-height:300px;overflow:auto;border:1px solid #776f5f;border-radius:8px;background:var(--paper2)}.map{position:relative;width:896px;height:704px;background-image:linear-gradient(to right,#28231c33 1px,transparent 1px),linear-gradient(to bottom,#28231c33 1px,transparent 1px);background-size:32px 32px}.terrain-art{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.terrain-art *{vector-effect:non-scaling-stroke}.label{position:absolute;font:italic 12px Georgia}.player{position:absolute;width:24px;height:24px;margin:4px;border:2px solid var(--paper2);border-radius:50%;background:var(--ink);color:white;display:flex;align-items:center;justify-content:center;z-index:5}.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.dpad{display:grid;grid-template-columns:repeat(3,52px);justify-content:center;gap:6px;margin-top:9px}.dpad button{padding:0;font-size:21px}.blank{visibility:hidden}.legend{font:12px system-ui;opacity:.72;text-align:center;margin:8px}.overlay{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:18px;z-index:20}.card{background:var(--paper2);border:1px solid #6d634f;border-radius:12px;padding:24px;max-width:390px;width:100%;text-align:center}.card button{width:100%;margin-top:8px}.hidden{display:none!important}</style></head><body><div id="app"><header><h1>POSTERBOARD QUEST</h1><div class="subtitle">web prototype 0.6 clean · 28 × 22 pencil-grid journey</div><div class="stats"><span class="pill" id="health">Health 6/6</span><span class="pill" id="terrain">Terrain Open</span><span class="pill" id="movement">Movement 0</span><span class="pill" id="last">Last roll —</span></div><div id="message">Roll the die to begin your journey.</div></header><div class="viewport" id="viewport"><div class="map" id="map"></div></div><div class="controls"><button class="primary" id="roll">ROLL d6</button><button id="end">END MOVE</button></div><div class="dpad"><span class="blank"></span><button data-dir="0,-1">↑</button><span class="blank"></span><button data-dir="-1,0">←</button><button data-dir="0,1">↓</button><button data-dir="1,0">→</button></div><div class="legend">Open 1 · Forest 2 · Mountain 3 · minimum one legal step on a fresh roll · bridges cross normally · river crossing: 1 death, 2–5 penalties, 6 clean</div></div><div class="overlay hidden" id="overlay"><div class="card"><h2 id="ctitle"></h2><p id="cintro"></p><div id="coutcome"></div><button class="primary" id="croll">ROLL d6</button><button class="primary hidden" id="continue">CONTINUE</button><button class="hidden" id="cancel">CANCEL CROSSING</button></div></div><script>'use strict';const W=28,H=22,S=32,MAX=6;let player={x:1,y:20},dest={x:26,y:1},move=0,health=MAX,last=null,enc=null,done=false,river=null,mode=null,steps=0;const terr=new Map(),K=(x,y)=>`${x},${y}`,set=(t,x,y)=>terr.set(K(x,y),t);set('village',1,20);set('tower',26,1);for(let y=0;y<H;y++)set('river',13,y);set('bridge',13,6);set('bridge',13,17);for(let x=16;x<=24;x++){let y=Math.max(2,13-(x-16));set('mountain',x,y);set('mountain',x,y+1)}[[4,17],[5,17],[6,17],[5,16],[6,16],[7,16],[8,8],[9,8],[10,8],[8,9],[9,9],[10,9],[18,18],[19,18],[20,18],[19,17],[20,17],[21,17]].forEach(p=>set('forest',...p));const encounters=[['ORC','An orc lumbers onto the path, gripping a chipped axe.'],['BANDITS','Bandits step from the brush and block the road.'],['FAIRY','A tiny light becomes a fairy.'],['TROLL','A troll watches you from beside the road.'],['OLD WOMAN','An old woman waits beside the road.']];const riverResults={1:['The current takes you.','You are swept away and drowned.',true],2:['A brutal crossing.','You reach the far bank but lose all remaining movement.','all'],3:['A punishing crossing.','You reach the far bank but lose 3 movement.',3],4:['A rough crossing.','You reach the far bank but lose 2 movement.',2],5:['A wobbly crossing.','You reach the far bank but lose 1 movement.',1],6:['A clean crossing.','You cross safely with no movement penalty.',0]};const $=x=>document.getElementById(x),map=$('map'),vp=$('viewport');function die(){return Math.floor(Math.random()*6)+1}function tAt(x,y){return terr.get(K(x,y))||'plain'}function mt(t){return t==='forest'?'forest':t==='mountain'?'mountain':'open'}function tn(t){return t==='forest'?'Forest':t==='mountain'?'Mountain':'Open'}function cost(t){return t==='forest'?2:t==='mountain'?3:1}function el(n,a={}){let e=document.createElementNS('http://www.w3.org/2000/svg',n);for(let k in a)e.setAttribute(k,a[k]);return e}function jit(n,r){let q=Math.sin(n*12.9898+78.233)*43758.5453;return((q-Math.floor(q))*2-1)*r}function draw(){let s=el('svg',{class:'terrain-art',viewBox:'0 0 896 704'}),p={fill:'none',stroke:'#5b564d','stroke-width':'1.05','stroke-linecap':'round','stroke-linejoin':'round',opacity:'.78'},f={...p,'stroke-width':'.7',opacity:'.35'};let L=`M 405 0 C 394 62 417 124 404 183 C 394 238 425 299 410 362 C 398 425 424 492 408 560 C 400 613 422 665 413 704`,R=`M 427 0 C 415 64 437 124 424 183 C 414 238 443 299 429 362 C 418 425 444 492 428 560 C 420 613 442 665 430 704`;s.append(el('path',{d:L,...p,'stroke-width':'1.45'}),el('path',{d:R,...p,'stroke-width':'1.35'}));for(let y=22;y<704;y+=37){let x=416+jit(y,6);s.append(el('path',{d:`M ${x-7} ${y} q 5 -3 10 -1 q 5 3 10 0`,...f}))}[6,17].forEach((gy,i)=>{let cy=gy*32+16,cx=417;s.append(el('path',{d:`M ${cx-14} ${cy-8} Q ${cx} ${cy-12} ${cx+14} ${cy-7} M ${cx-14} ${cy+8} Q ${cx} ${cy+10} ${cx+14} ${cy+7}`,...p,'stroke-width':'1.35'}));for(let q=-10;q<=10;q+=5)s.append(el('line',{x1:cx+q,y1:cy-8,x2:cx+q+1,y2:cy+8,...f}))});let i=0;for(let [k,t] of terr){let[x,y]=k.split(',').map(Number);if(t==='forest'){let cx=x*32+16+jit(i,2),b=y*32+28,h=20+jit(i+20,2),top=b-h;for(let z=0;z<5;z++){let yy=top+z*4,w=8-z*.7;s.append(el('path',{d:`M ${cx} ${yy} L ${cx-w} ${yy+5} L ${cx} ${yy+4} L ${cx+w} ${yy+5}`,...p}))}s.append(el('line',{x1:cx,y1:top+5,x2:cx,y2:b,...p}));i++}}i=0;for(let[k,t]of terr){let[x,y]=k.split(',').map(Number);if(t==='mountain'){let cx=x*32+16+jit(i+100,2),b=y*32+27,h=18+jit(i+140,2),w=12+jit(i+160,1.5),pk=cx+jit(i+180,1.5);s.append(el('path',{d:`M ${cx-w} ${b} L ${pk} ${b-h} L ${cx+w} ${b}`,...p,'stroke-width':'1.2'}));s.append(el('path',{d:`M ${pk} ${b-h+3} l -5 7 l 4 -1 l 4 5`,...f}));i++}}s.append(el('path',{d:'M 36 668 L 36 655 L 48 647 L 60 655 L 60 668 Z M 45 668 L 45 660 L 51 660 L 51 668',...p}));map.append(s)}draw();[['Home',1,20],['Ruined Tower',24,2]].forEach(([txt,x,y])=>{let d=document.createElement('div');d.className='label';d.style.left=x*32+'px';d.style.top=y*32+'px';d.textContent=txt;map.append(d)});let tok=document.createElement('div');tok.className='player';tok.textContent='✦';map.append(tok);function msg(x){$('message').textContent=x}function can(){return !done&&!enc&&!river&&move>0}function render(){tok.style.left=player.x*32+4+'px';tok.style.top=player.y*32+4+'px';$('health').textContent=`Health ${health}/${MAX}`;$('terrain').textContent=`Terrain ${tn(mt(tAt(player.x,player.y)))}`;$('movement').textContent=`Movement ${move}`;$('last').textContent=`Last roll ${last??'—'}`;$('roll').disabled=done||enc||river||move>0;$('end').disabled=done||enc||river||move<=0;document.querySelectorAll('[data-dir]').forEach(b=>b.disabled=!can())}function showRiver(dx,dy){river={dx,dy,r:null};mode='river';$('overlay').classList.remove('hidden');$('ctitle').textContent='RIVER CROSSING';$('cintro').textContent='The current looks dangerous.';$('coutcome').textContent='Roll to see what happens.';$('croll').classList.remove('hidden');$('continue').classList.add('hidden');$('cancel').classList.remove('hidden');render()}function go(x,y){if(!can()||x<0||y<0||x>=W||y>=H||Math.abs(x-player.x)+Math.abs(y-player.y)!==1)return;let t=tAt(x,y);if(t==='river'){showRiver(x-player.x,y-player.y);return}let m=mt(t),c=cost(m),first=steps===0;if(move<c&&!first){msg(`${tn(m)} costs ${c} movement to enter. You have ${move}.`);return}player={x,y};move=Math.max(0,move-c);steps++;msg(`Entered ${tn(m)}. Cost ${c}. ${move} movement remaining.`);if(x===dest.x&&y===dest.y){done=true;alert('You reached the ruined tower!');}if(move===0)endTurn();render();save()}function endTurn(){if(Math.random()<.55){enc=encounters[Math.floor(Math.random()*encounters.length)];mode='enc';$('overlay').classList.remove('hidden');$('ctitle').textContent=enc[0];$('cintro').textContent=enc[1];$('coutcome').textContent='Roll to see what happens.';$('croll').classList.remove('hidden');$('continue').classList.add('hidden');$('cancel').classList.add('hidden')}else msg('The road is quiet. Roll again.')}map.addEventListener('pointerup',e=>{let r=map.getBoundingClientRect();go(Math.floor((e.clientX-r.left)/32),Math.floor((e.clientY-r.top)/32))});document.querySelectorAll('[data-dir]').forEach(b=>b.onclick=()=>{let[dX,dY]=b.dataset.dir.split(',').map(Number);go(player.x+dX,player.y+dY)});$('roll').onclick=()=>{if(done||enc||river||move)return;last=die();move=last;steps=0;msg(`Rolled ${last}. You have ${move} movement.`);render();save()};$('end').onclick=()=>{if(move>0&&!enc&&!river){move=0;endTurn();render();save()}};$('croll').onclick=()=>{if(mode==='river'){let r=die();river.r=r;let a=riverResults[r];$('coutcome').innerHTML=`<b>You rolled ${r}</b><br><br>${a[0]} ${a[1]}`;$('croll').classList.add('hidden');$('continue').classList.remove('hidden');$('continue').textContent=r===1?'CONTINUE':'CROSS RIVER';$('cancel').classList.add('hidden');return}let r=die(),delta=r<=1?-2:r===2?-1:r>=5?1:0;health=Math.max(0,Math.min(MAX,health+delta));$('coutcome').innerHTML=`<b>You rolled ${r}</b><br><br>${delta<0?'You are hurt.':delta>0?'You find provisions.':'You get through unharmed.'}`;$('croll').classList.add('hidden');$('continue').classList.remove('hidden');if(health<=0)done=true;render();save()};$('cancel').onclick=()=>{river=null;mode=null;$('overlay').classList.add('hidden');render()};$('continue').onclick=()=>{if(mode==='river'){let r=river.r,a=riverResults[r];if(a[2]===true){health=0;done=true;river=null;mode=null;$('overlay').classList.add('hidden');msg('The river took you. The journey ends.');render();save();return}player={x:player.x+river.dx*2,y:player.y+river.dy*2};steps++;move=a[2]==='all'?0:Math.max(0,move-a[2]);river=null;mode=null;$('overlay').classList.add('hidden');msg(`River roll ${r}. ${a[1]} ${move} movement remaining.`);if(move===0)endTurn();render();save();return}$('overlay').classList.add('hidden');enc=null;mode=null;if(done)msg('The journey ends.');else msg('Roll the die for your next move.');render();save()};function save(){localStorage.setItem('pbq06clean',JSON.stringify({player,move,health,last,done,steps}))}try{let s=JSON.parse(localStorage.getItem('pbq06clean'));if(s){player=s.player||player;move=s.move||0;health=s.health??MAX;last=s.last??null;done=!!s.done;steps=s.steps||0;msg('Journey restored from this device.')}}catch(e){}render();requestAnimationFrame(()=>{vp.scrollLeft=Math.max(0,player.x*32-vp.clientWidth/2);vp.scrollTop=Math.max(0,player.y*32-vp.clientHeight/2)});</script></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#eee3c4">
+<title>Posterboard Quest — Web Prototype 0.7 Clear Paths</title>
+<style>
+:root{--paper:#eee3c4;--paper2:#f8efd7;--ink:#2e2a23;--line:#807764;--shadow:rgba(46,42,35,.18)}
+*{box-sizing:border-box} html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}
+body{font-family:Georgia,serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button{font:700 16px system-ui,-apple-system,sans-serif;color:var(--ink);background:#fff8e8;border:1px solid #665e4d;border-radius:10px;min-height:48px;padding:10px 14px;touch-action:manipulation}
+button:disabled{opacity:.42}.primary{background:var(--ink);color:white}.danger{background:#fff3ee}
+#app{max-width:960px;margin:0 auto;padding:max(10px,env(safe-area-inset-top)) 10px max(14px,env(safe-area-inset-bottom))}
+header{text-align:center}h1{font-size:25px;letter-spacing:.04em;margin:4px 0}.subtitle{font:12px system-ui;opacity:.68;margin-bottom:8px}
+.stats{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;font:600 13px system-ui;margin:8px 0}.pill{background:#ffffff70;border:1px solid #8a806b;border-radius:999px;padding:6px 10px}
+#message{min-height:42px;font:15px/1.35 system-ui;margin:6px auto 8px;max-width:700px}
+.viewport{height:56vh;min-height:300px;max-height:640px;overflow:auto;border:1px solid #776f5f;border-radius:8px;background:var(--paper2);box-shadow:inset 0 0 24px var(--shadow);-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}
+.map{position:relative;width:896px;height:704px;background-image:linear-gradient(to right,rgba(40,35,28,.16) 1px,transparent 1px),linear-gradient(to bottom,rgba(40,35,28,.16) 1px,transparent 1px);background-size:32px 32px}
+.terrain-art{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}.terrain-art path,.terrain-art line,.terrain-art rect,.terrain-art ellipse,.terrain-art polyline{vector-effect:non-scaling-stroke}
+.label{position:absolute;font:italic 12px Georgia,serif;pointer-events:none;white-space:nowrap;opacity:.88}
+.player{position:absolute;width:24px;height:24px;margin:4px;border:2px solid var(--paper2);border-radius:50%;background:var(--ink);color:white;display:flex;align-items:center;justify-content:center;z-index:5;font:13px system-ui;box-shadow:0 1px 3px #0006;pointer-events:none}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.dpadrow{display:grid;grid-template-columns:repeat(3,52px);justify-content:center;gap:6px;margin:9px 0 0}.dpadrow button{padding:0;font-size:21px}.blank{visibility:hidden}
+.legend{font:12px/1.4 system-ui;opacity:.74;text-align:center;margin:8px 0}.details{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}.panel{background:#ffffff55;border:1px solid #8a806b;border-radius:8px;padding:9px}.panel h2{font:700 13px system-ui;margin:0 0 5px}.log{font:12px/1.35 system-ui;max-height:110px;overflow:auto}.log div{padding:2px 0;border-bottom:1px dotted #8b816c55}
+.overlay{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:18px;z-index:20}.card{background:var(--paper2);border:1px solid #6d634f;border-radius:12px;padding:24px;max-width:390px;width:100%;text-align:center;box-shadow:0 18px 60px #0008}.card h2{margin-top:0}.card button{width:100%;margin-top:8px}.hidden{display:none!important}
+@media(min-width:760px){.details{grid-template-columns:1fr 1fr}.viewport{height:60vh}}
+</style>
+</head>
+<body>
+<div id="app">
+<header><h1>POSTERBOARD QUEST</h1><div class="subtitle">web prototype 0.7 clear paths · 28 × 22 pencil-grid journey</div>
+<div class="stats"><span class="pill" id="health">Health 6/6</span><span class="pill" id="terrain">Terrain Open</span><span class="pill" id="movement">Movement 0</span><span class="pill" id="last">Last roll —</span></div>
+<div id="message">Roll the die to begin your journey.</div></header>
+<div class="viewport" id="viewport"><div class="map" id="map"></div></div>
+<div class="controls"><button class="primary" id="roll">ROLL d6</button><button id="end">END MOVE</button></div>
+<div class="dpadrow"><span class="blank"></span><button data-dir="0,-1" aria-label="Move north">↑</button><span class="blank"></span><button data-dir="-1,0" aria-label="Move west">←</button><button data-dir="0,1" aria-label="Move south">↓</button><button data-dir="1,0" aria-label="Move east">→</button></div>
+<div class="legend">Obstacle terrain is denser now, but every mountain and forest mass has an open way around it. Going around is safer and cheaper; cutting through is shorter but costs more movement. Open 1 · Forest 2 · Mountain 3 · bridges cross normally · rivers interrupt movement.</div>
+<div class="details"><div class="panel"><h2>JOURNEY</h2><div class="log" id="log"></div></div><div class="panel"><h2>PROTOTYPE RULE</h2><div style="font:12px/1.4 system-ui">Reach the ruined tower alive. Forest squares cost 2 movement and mountain squares cost 3. A fresh roll still guarantees one legal step. The map now uses denser obstacle islands, but each one leaves a visible route around it, so a longer low-cost path always exists.</div><button class="danger" id="restart" style="width:100%;margin-top:8px">RESTART JOURNEY</button></div></div>
+</div>
+<div class="overlay hidden" id="overlay"><div class="card"><h2 id="ctitle"></h2><p id="cintro"></p><div id="coutcome"></div><button class="primary" id="croll">ROLL d6</button><button class="primary hidden" id="continue">CONTINUE</button><button class="hidden" id="cancelRiver">CANCEL CROSSING</button></div></div>
+<script>
+'use strict';
+const W=28,H=22,S=32,MAX_HEALTH=6;
+let player={x:1,y:20},dest={x:25,y:1},move=0,health=MAX_HEALTH,last=null,enc=null,done=false,turn=0,riverAttempt=null,modalMode=null,stepsThisRoll=0;
+const terrain=new Map(), key=(x,y)=>`${x},${y}`; const set=(t,x,y)=>terrain.set(key(x,y),t);
+set('village',1,20); set('tower',25,1);
+for(let y=0;y<H;y++) set('river',13,y); set('bridge',13,6); set('bridge',13,17);
+[
+ [2,1],[3,1],[4,1],[5,1],[2,2],[3,2],[4,2],[5,2],[3,3],[4,3],
+ [8,2],[9,2],[10,2],[11,2],[9,1],[10,1],[11,1],[8,3],[9,3],[10,3],
+ [7,5],[8,5],[9,5],[10,5],[7,6],[8,6],[9,6],[10,6],[8,7],[9,7],
+ [2,14],[3,14],[4,14],[5,14],[2,15],[3,15],[4,15],[5,15],[3,16],[4,16],[5,16],
+ [7,17],[8,17],[9,17],[10,17],[7,18],[8,18],[9,18],[8,19],[9,19],
+ [18,3],[19,3],[20,3],[18,4],[19,4],[20,4],[19,2],
+ [22,8],[23,8],[24,8],[25,8],[22,9],[23,9],[24,9],[25,9],[23,10],[24,10],[25,10],
+ [20,16],[21,16],[22,16],[23,16],[24,16],[21,17],[22,17],[23,17],[24,17],[22,18],[23,18],[24,18],
+ [17,19],[18,19],[19,19],[18,20],[19,20]
+].forEach(p=>set('forest',...p));
+[
+ [17,5],[18,5],[19,5],[17,6],[18,6],[19,6],[18,7],
+ [20,4],[21,4],[22,4],[20,5],[21,5],[22,5],[21,6],[22,6],[23,6],
+ [19,8],[20,8],[21,8],[19,9],[20,9],[21,9],[20,10],
+ [17,11],[18,11],[19,11],[18,12],[19,12],[20,12],[18,13],[19,13],
+ [21,12],[22,12],[23,12],[22,13],[23,13],[24,13],[21,14],[22,14],[23,14],[22,15],
+ [23,2],[24,2],[25,2],[24,1]
+].forEach(p=>set('mountain',...p));
+const encounters=[
+['BANDITS','Three men step from the trees and block the road.',[['They attack before you can speak. Lose 2 health.',-2],['They rough you up. Lose 1 health.',-1],['They demand a toll, then let you pass.',0],['They decide you are not worth the trouble.',0],['They share their supper. Gain 1 health.',1],['Their leader points out a safer trail. Gain 1 health.',1]]],
+['ORC','An orc lumbers onto the path, gripping a chipped axe.',[['The orc catches you badly off guard. Lose 2 health.',-2],['You trade blows before driving it away. Lose 1 health.',-1],['After a tense standoff, it retreats.',0],['You frighten it off with a lucky feint.',0],['You defeat it and find provisions. Gain 1 health.',1],['It flees, dropping food. Gain 1 health.',1]]],
+['FAIRY','A tiny light circles your head and becomes a fairy.',[['She takes offense. Lose 1 health.',-1],['She laughs and vanishes.',0],['She warns you of trouble ahead.',0],['She tells you a completely useless riddle.',0],['She eases your weariness. Gain 1 health.',1],['She leaves a warm little cake. Gain 1 health.',1]]],
+['TROLL','A troll crouches beside the road, deciding whether you are dinner.',[['It decides yes. You escape, barely. Lose 2 health.',-2],['A thrown stone catches you. Lose 1 health.',-1],['You hide until it wanders away.',0],['You distract it and slip past.',0],['It is asleep; you steal a loaf. Gain 1 health.',1],['A storm scares it away; you find food. Gain 1 health.',1]]],
+['OLD WOMAN','An old woman sits beside the road with a basket on her knees.',[['She curses your manners. Lose 1 health.',-1],['She asks a question you cannot answer.',0],['She gives you uncertain directions.',0],['You talk for a while. The road feels less lonely.',0],['She gives you an apple. Gain 1 health.',1],['She insists you eat. Gain 1 health.',1]]]
+];
+const RIVER_RESULTS={
+  1:{title:'The current takes you.', text:'You are swept away and drowned. The journey ends here.', cross:false, end:true, kill:true},
+  2:{title:'A brutal crossing.', text:'You make the far bank, but the effort costs all of your remaining movement.', cross:true, penalty:'all', end:false},
+  3:{title:'A punishing crossing.', text:'You make the far bank, but lose 3 movement.', cross:true, penalty:3, end:false},
+  4:{title:'A rough crossing.', text:'You make the far bank, but lose 2 movement.', cross:true, penalty:2, end:false},
+  5:{title:'A wobbly crossing.', text:'You make the far bank, but lose 1 movement.', cross:true, penalty:1, end:false},
+  6:{title:'A clean crossing.', text:'You cross safely with no movement penalty.', cross:true, penalty:0, end:false}
+};
+const $=id=>document.getElementById(id), map=$('map'), viewport=$('viewport');
+function die(){return Math.floor(Math.random()*6)+1}
+function tAt(x,y){return terrain.get(key(x,y))||'plain'}
+function moveTerrain(t){return t==='forest'?'forest':t==='mountain'?'mountain':'open'}
+function terrainName(t){return t==='forest'?'Forest':t==='mountain'?'Mountain':'Open'}
+function stepCost(t){return t==='forest'?2:t==='mountain'?3:1}
+function terrainPenalty(t){return t==='forest'?1:t==='mountain'?2:0}
+function svgEl(n,a={}){const e=document.createElementNS('http://www.w3.org/2000/svg',n);for(const[k,v]of Object.entries(a))e.setAttribute(k,v);return e}
+function jitter(seed,range){const q=Math.sin(seed*12.9898+78.233)*43758.5453;return((q-Math.floor(q))*2-1)*range}
+function drawMap(){
+ const svg=svgEl('svg',{class:'terrain-art',viewBox:`0 0 ${W*S} ${H*S}`});
+ const pencil={fill:'none',stroke:'#4b473f','stroke-width':'1.02','stroke-linecap':'round','stroke-linejoin':'round'};
+ const strong={fill:'none',stroke:'#35312b','stroke-width':'1.2','stroke-linecap':'round','stroke-linejoin':'round'};
+ const faint={fill:'none',stroke:'#6f695a','stroke-width':'.72','stroke-linecap':'round','stroke-linejoin':'round',opacity:'.55'};
+ let bd='';
+ for(let x=3;x<=893;x+=18){const y=4+jitter(x,1.5);bd+=`L ${x} ${y} `}
+ for(let y=4;y<=701;y+=18){const x=893+jitter(y+10,1.6);bd+=`L ${x} ${y} `}
+ for(let x=893;x>=3;x-=18){const y=701+jitter(x+20,1.6);bd+=`L ${x} ${y} `}
+ for(let y=701;y>=4;y-=18){const x=3+jitter(y+30,1.4);bd+=`L ${x} ${y} `}
+ svg.append(svgEl('path',{d:`M 3 4 ${bd} Z`,...strong,'stroke-width':'1.1'}));
+ let left='M 398 0 ', right='M 430 0 ';
+ for(let y=0;y<=704;y+=26){left+=`L ${398+jitter(y*1.7,7)} ${y} `; right+=`L ${430+jitter(y*1.8+90,7)} ${y} `}
+ svg.append(svgEl('path',{d:left,...strong,'stroke-width':'1.25'}));
+ svg.append(svgEl('path',{d:right,...strong,'stroke-width':'1.25'}));
+ for(let y=10;y<700;y+=22){const cx=414+jitter(y+200,2.5);svg.append(svgEl('path',{d:`M ${cx-10} ${y} q 6 -2 12 0 q 6 2 12 0`,...faint,'stroke-width':'.6'}));}
+ for(let y=16;y<692;y+=34){const lx=397+jitter(y+45,1.8), rx=431+jitter(y+75,1.8);svg.append(svgEl('path',{d:`M ${lx-6} ${y} q -4 2 -8 0 M ${rx+6} ${y+2} q 4 2 8 0`,...faint,'stroke-width':'.7'}));}
+ [6,17].forEach((gy,idx)=>{const cy=gy*S+16,cx=414;svg.append(svgEl('path',{d:`M ${cx-20} ${cy-11} Q ${cx} ${cy-15} ${cx+20} ${cy-11} M ${cx-20} ${cy+11} Q ${cx} ${cy+15} ${cx+20} ${cy+11}`,...strong})); for(let x=-16;x<=16;x+=4){svg.append(svgEl('line',{x1:cx+x,y1:cy-10,x2:cx+x+1,y2:cy+10,...faint}));} svg.append(svgEl('path',{d:`M ${cx-22} ${cy-6} q 2 -5 5 -6 M ${cx+17} ${cy-6} q 2 -5 5 -6 M ${cx-22} ${cy+6} q 2 5 5 6 M ${cx+17} ${cy+6} q 2 5 5 6`,...faint}));});
+ let g=1;
+ for(let y=1;y<H;y++){
+   for(let x=1;x<W;x++){
+     const t=tAt(x,y); if(t!=='plain'&&t!=='village'&&t!=='tower') continue;
+     const gate=(Math.sin((x*31+y*53)*0.51)+1)/2; if(gate<0.63) continue;
+     const cx=x*S+8+jitter(g,8), cy=y*S+23+jitter(g+2,6); let d=''; const n=2+(g%4);
+     for(let k=0;k<n;k++){const ox=k*2.2; d+=`M ${cx+ox} ${cy} l ${jitter(g+k+9,.8)} ${-4-jitter(g+k+11,1.8)} `}
+     svg.append(svgEl('path',{d,...faint,'stroke-width':'.6'})); g++;
+   }
+ }
+ [[6,4,'stones'],[3,8,'ruins'],[8,8,'ruins'],[10,11,'pond'],[24,14,'pond'],[15,1,'stones'],[26,5,'stones'],[11,19,'deadtree']].forEach(([x,y,kind],i)=>{
+   const cx=x*S+16, cy=y*S+16;
+   if(kind==='stones'){
+     svg.append(svgEl('ellipse',{cx:cx-7,cy:cy+6,rx:3.5,ry:2.5,...faint})); svg.append(svgEl('ellipse',{cx:cx+3,cy:cy+3,rx:4,ry:3,...faint})); svg.append(svgEl('ellipse',{cx:cx+10,cy:cy+7,rx:2.8,ry:2,...faint}));
+   } else if(kind==='ruins'){
+     svg.append(svgEl('path',{d:`M ${cx-12} ${cy+10} L ${cx-10} ${cy-4} L ${cx-6} ${cy-7} L ${cx-4} ${cy+10} M ${cx+2} ${cy+10} L ${cx+4} ${cy-1} L ${cx+8} ${cy-5} L ${cx+10} ${cy+10}`,...faint}));
+     svg.append(svgEl('path',{d:`M ${cx-16} ${cy+11} q 10 -3 20 0 q 10 3 20 0`,...faint,'stroke-width':'.55'}));
+   } else if(kind==='pond'){
+     svg.append(svgEl('path',{d:`M ${cx-18} ${cy+3} q 6 -10 20 -8 q 9 1 13 8 q 2 8 -6 11 q -5 5 -13 4 q -10 1 -14 -4 q -6 -3 0 -11 Z`,...faint}));
+     svg.append(svgEl('path',{d:`M ${cx-10} ${cy-4} q 1 -5 3 -6 M ${cx+11} ${cy+2} q 1 -5 3 -6`,...faint,'stroke-width':'.55'}));
+   } else if(kind==='deadtree'){
+     svg.append(svgEl('path',{d:`M ${cx} ${cy+12} L ${cx+2} ${cy-6} M ${cx+1} ${cy-1} l -8 -5 M ${cx+1} ${cy-2} l 7 -6 M ${cx-3} ${cy+3} l -8 3 M ${cx+2} ${cy+5} l 8 4`,...faint}));
+   }
+ });
+ let i=0; for(const[k,t] of terrain){const [x,y]=k.split(',').map(Number); if(t!=='forest') continue;
+   const cx=x*S+16+jitter(i,2.2), b=y*S+29+jitter(i+10,1.4), top=b-(22+jitter(i+20,2.5)), w=8+jitter(i+30,1.2);
+   svg.append(svgEl('path',{d:`M ${cx} ${b} L ${cx} ${top+7}`,...pencil,'stroke-width':'1'}));
+   [0,4,8,12,16].forEach((off,idx)=>{const yy=top+off, ww=w*(1-idx*0.12)+jitter(i+idx,0.6); svg.append(svgEl('path',{d:`M ${cx} ${yy} L ${cx-ww} ${yy+5} L ${cx-ww*0.16} ${yy+4} M ${cx} ${yy} L ${cx+ww*0.92} ${yy+5} L ${cx+ww*0.14} ${yy+4}`,...pencil,'stroke-width':idx===0?'1.05':'1'}));});
+   if(i%3===0) svg.append(svgEl('path',{d:`M ${cx-10} ${b+3} q 6 1 12 0`,...faint,'stroke-width':'.55'}));
+   i++;
+ }
+ i=0; for(const[k,t] of terrain){const [x,y]=k.split(',').map(Number); if(t!=='mountain') continue;
+   const cx=x*S+16+jitter(i+100,2.4), b=y*S+28+jitter(i+120,1.8), h=20+jitter(i+140,2.8), w=12+jitter(i+160,1.7), peak=cx+jitter(i+180,1.9);
+   svg.append(svgEl('path',{d:`M ${cx-w} ${b} L ${peak} ${b-h} L ${cx+w} ${b}`,...strong,'stroke-width':'1.1'}));
+   svg.append(svgEl('path',{d:`M ${peak-1} ${b-h+3} L ${peak-6} ${b-h+10} L ${peak-1} ${b-h+8} L ${peak+2} ${b-h+12}`,...pencil,'stroke-width':'.9'}));
+   svg.append(svgEl('path',{d:`M ${peak+3} ${b-h+12} L ${cx+w-4} ${b-2}`,...faint,'stroke-width':'.8'}));
+   if(i%2===0){svg.append(svgEl('path',{d:`M ${cx-w+2} ${b} q 5 -3 10 -1`,...faint,'stroke-width':'.55'}));}
+   i++;
+ }
+ svg.append(svgEl('path',{d:`M 36 668 L 36 655 L 48 647 L 60 655 L 60 668 Z M 45 668 L 45 660 L 51 660 L 51 668 M 40 656 L 48 650 L 57 656`,...strong,'stroke-width':'1.1'}));
+ const tx=25*S+4, ty=S+3;
+ svg.append(svgEl('path',{d:`M ${tx} ${ty+27} L ${tx+1} ${ty+10} L ${tx+6} ${ty+11} L ${tx+8} ${ty+5} L ${tx+13} ${ty+8} L ${tx+15} ${ty+2} L ${tx+21} ${ty+4} L ${tx+22} ${ty+27} Z M ${tx+7} ${ty+27} L ${tx+7} ${ty+18} L ${tx+13} ${ty+18} L ${tx+13} ${ty+27} M ${tx+3} ${ty+15} l 3 1 M ${tx+15} ${ty+15} l 3 -1`,...strong,'stroke-width':'1.08'}));
+ map.append(svg);
+}
+drawMap();
+[['Home',1,20],['Ruined Tower',23.95,1.95]].forEach(([text,x,y])=>{const d=document.createElement('div');d.className='label';d.style.left=`${x*S}px`;d.style.top=`${y*S}px`;d.textContent=text;map.appendChild(d)});
+const token=document.createElement('div');token.className='player';token.textContent='✦';map.appendChild(token);
+function note(text){const d=document.createElement('div');d.textContent=text;$('log').prepend(d)}
+function msg(text){$('message').textContent=text}
+function canAct(){return !done&&!enc&&!riverAttempt&&move>0}
+function beginRiver(dx,dy){riverAttempt={dx,dy,rolled:null};modalMode='river';$('overlay').classList.remove('hidden');$('ctitle').textContent='RIVER CROSSING';$('cintro').textContent='The current looks dangerous.';$('coutcome').textContent='Roll to see what happens.';$('croll').textContent='ROLL d6';$('croll').classList.remove('hidden');$('continue').classList.add('hidden');$('cancelRiver').classList.remove('hidden');note('Attempted a river crossing.');render()}
+function attemptMove(x,y){
+ if(!canAct()||x<0||y<0||x>=W||y>=H)return;
+ if(Math.abs(x-player.x)+Math.abs(y-player.y)!==1)return;
+ const t=tAt(x,y);
+ if(t==='river'){beginRiver(x-player.x,y-player.y);return}
+ const mt=moveTerrain(t),cost=stepCost(mt),isFirst=stepsThisRoll===0;
+ if(move<cost&&!isFirst){msg(`${terrainName(mt)} costs ${cost} movement to enter. You have ${move} remaining.`);note(`Could not enter ${terrainName(mt).toLowerCase()}: ${cost} movement required, ${move} remaining.`);return}
+ player={x,y};
+ const spent=Math.min(move,cost);move=Math.max(0,move-cost);stepsThisRoll++;
+ const p=terrainPenalty(mt);
+ if(p){const minimumNote=(spent<cost&&isFirst)?' Minimum-one-step rule used.':'';msg(`Entered ${terrainName(mt)}: 1 movement + ${p} terrain penalty = ${cost}.${minimumNote} ${move} movement remaining.`);note(`Entered ${terrainName(mt)}. Cost ${cost}.${minimumNote}`)}
+ else{msg(`Moved across open ground. 1 movement spent. ${move} remaining.`);note('Moved across open ground. Cost 1.')}
+ if(x===dest.x&&y===dest.y){done=true;ending(true);render();save();return}
+ if(move===0)endTurn();render();save()
+}
+map.addEventListener('pointerup',e=>{const r=map.getBoundingClientRect();attemptMove(Math.floor((e.clientX-r.left)/S),Math.floor((e.clientY-r.top)/S))});
+document.querySelectorAll('[data-dir]').forEach(b=>b.addEventListener('click',()=>{const[dx,dy]=b.dataset.dir.split(',').map(Number);attemptMove(player.x+dx,player.y+dy)}));
+function endTurn(){turn++;if(Math.random()<.55){enc=encounters[Math.floor(Math.random()*encounters.length)];showEncounter()}else{msg('The road is quiet. Roll again.');note(`Turn ${turn}: the road was quiet.`)}}
+function showEncounter(){modalMode='encounter';$('overlay').classList.remove('hidden');$('ctitle').textContent=enc[0];$('cintro').textContent=enc[1];$('coutcome').textContent='Roll to see what happens.';$('croll').textContent='ROLL d6';$('croll').classList.remove('hidden');$('continue').classList.add('hidden');$('cancelRiver').classList.add('hidden');note(`Turn ${turn}: encountered ${enc[0].toLowerCase()}.`)}
+$('roll').addEventListener('click',()=>{if(done||enc||riverAttempt||move)return;last=die();move=last;stepsThisRoll=0;const text=`Rolled ${last}. You have ${move} movement. Terrain costs apply as soon as you enter each square.`;msg(text);note(text);render();save()});
+$('end').addEventListener('click',()=>{if(move>0&&!enc&&!riverAttempt&&!done){move=0;endTurn();render();save()}});
+$('croll').addEventListener('click',()=>{
+ if(modalMode==='river'&&riverAttempt){
+   const r=die(); riverAttempt.rolled=r; const result=RIVER_RESULTS[r];
+   $('coutcome').innerHTML=`<b>You rolled ${r}</b><br><br>${result.title} ${result.text}`;
+   $('croll').classList.add('hidden'); $('continue').textContent=(r===1)?'CONTINUE':'CROSS RIVER'; $('continue').classList.remove('hidden'); $('cancelRiver').classList.add('hidden'); note(`River roll: ${r}. ${result.title}`); return;
+ }
+ const r=die(),o=enc[2][r-1];health=Math.max(0,Math.min(MAX_HEALTH,health+o[1]));$('coutcome').innerHTML=`<b>You rolled ${r}</b><br><br>${o[0]}`;$('croll').classList.add('hidden');$('continue').textContent='CONTINUE';$('continue').classList.remove('hidden');note(`${enc[0]} roll ${r}: ${o[0]}`);if(health<=0)done=true;render();save()});
+function closeRiver(){riverAttempt=null;modalMode=null;$('overlay').classList.add('hidden');$('cancelRiver').classList.add('hidden')}
+$('cancelRiver').addEventListener('click',()=>{closeRiver();msg(`You stay on this bank. ${move} movement remaining.`);note('River crossing cancelled.');render()});
+$('continue').addEventListener('click',()=>{
+ if(modalMode==='river'){
+   if(!riverAttempt||riverAttempt.rolled===null)return;
+   const r=riverAttempt.rolled, result=RIVER_RESULTS[r];
+   if(result.kill){health=0; done=true; closeRiver(); ending(false); render(); save(); return;}
+   const nx=player.x+riverAttempt.dx*2, ny=player.y+riverAttempt.dy*2; player={x:nx,y:ny}; stepsThisRoll++;
+   if(result.penalty==='all') move=0; else move=Math.max(0,move-result.penalty);
+   note(`Crossed the river on roll ${r}. ${result.text}`); closeRiver();
+   msg(`River result ${r}: ${result.text} ${move} movement remaining.`);
+   if(nx===dest.x&&ny===dest.y){done=true; ending(true); render(); save(); return;}
+   if(move===0) endTurn(); render(); save(); return;
+ }
+ $('overlay').classList.add('hidden'); enc=null; modalMode=null; if(done) ending(false); else msg('Roll the die for your next move.'); render(); save()
+});
+function ending(win){modalMode='ending';$('overlay').classList.remove('hidden');$('ctitle').textContent=win?'YOU MADE IT':'THE JOURNEY ENDS';$('cintro').textContent=win?'You reached the ruined tower.':'You ran out of health before reaching the tower.';$('coutcome').textContent=win?'For prototype 0.7 clear paths, that is victory.':'The poster-board traveler has fallen.';$('croll').classList.add('hidden');$('continue').classList.add('hidden');$('cancelRiver').classList.add('hidden')}
+function render(){token.style.left=`${player.x*S+4}px`;token.style.top=`${player.y*S+4}px`;$('health').textContent=`Health ${health}/${MAX_HEALTH}`;$('terrain').textContent=`Terrain ${terrainName(moveTerrain(tAt(player.x,player.y)))}`;$('movement').textContent=`Movement ${move}`;$('last').textContent=`Last roll ${last??'—'}`;$('roll').disabled=done||!!enc||!!riverAttempt||move>0;$('end').disabled=done||!!enc||!!riverAttempt||move<=0;document.querySelectorAll('[data-dir]').forEach(b=>b.disabled=!canAct())}
+function save(){localStorage.setItem('pbq07clean',JSON.stringify({player,move,health,last,done,turn,stepsThisRoll}))}
+function load(){try{const s=JSON.parse(localStorage.getItem('pbq07clean'));if(!s)return;player=s.player||player;move=s.move||0;health=Number.isFinite(s.health)?s.health:MAX_HEALTH;last=s.last??null;done=!!s.done;turn=s.turn||0;stepsThisRoll=s.stepsThisRoll||0;msg('Journey restored from this device.');note('Saved journey restored.')}catch(_){} }
+function restart(){localStorage.removeItem('pbq07clean');location.reload()}
+$('restart').addEventListener('click',restart);load();render();requestAnimationFrame(()=>{viewport.scrollLeft=Math.max(0,player.x*S-viewport.clientWidth/2);viewport.scrollTop=Math.max(0,player.y*S-viewport.clientHeight/2)});
+</script>
+</body></html>
