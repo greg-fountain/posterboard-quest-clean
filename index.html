@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#eee3c4">
-<title>Posterboard Quest — Web Prototype 0.7 Clear Paths</title>
+<title>Posterboard Quest — Web Prototype 0.8 Terrain Modifiers</title>
 <style>
 :root{--paper:#eee3c4;--paper2:#f8efd7;--ink:#2e2a23;--line:#807764;--shadow:rgba(46,42,35,.18)}
 *{box-sizing:border-box} html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}
@@ -28,14 +28,14 @@ header{text-align:center}h1{font-size:25px;letter-spacing:.04em;margin:4px 0}.su
 </head>
 <body>
 <div id="app">
-<header><h1>POSTERBOARD QUEST</h1><div class="subtitle">web prototype 0.7 clear paths · 28 × 22 pencil-grid journey</div>
+<header><h1>POSTERBOARD QUEST</h1><div class="subtitle">web prototype 0.8 terrain modifiers · 28 × 22 pencil-grid journey</div>
 <div class="stats"><span class="pill" id="health">Health 6/6</span><span class="pill" id="terrain">Terrain Open</span><span class="pill" id="movement">Movement 0</span><span class="pill" id="last">Last roll —</span></div>
 <div id="message">Roll the die to begin your journey.</div></header>
 <div class="viewport" id="viewport"><div class="map" id="map"></div></div>
 <div class="controls"><button class="primary" id="roll">ROLL d6</button><button id="end">END MOVE</button></div>
 <div class="dpadrow"><span class="blank"></span><button data-dir="0,-1" aria-label="Move north">↑</button><span class="blank"></span><button data-dir="-1,0" aria-label="Move west">←</button><button data-dir="0,1" aria-label="Move south">↓</button><button data-dir="1,0" aria-label="Move east">→</button></div>
-<div class="legend">Obstacle terrain is denser now, but every mountain and forest mass has an open way around it. Going around is safer and cheaper; cutting through is shorter but costs more movement. Open 1 · Forest 2 · Mountain 3 · bridges cross normally · rivers interrupt movement.</div>
-<div class="details"><div class="panel"><h2>JOURNEY</h2><div class="log" id="log"></div></div><div class="panel"><h2>PROTOTYPE RULE</h2><div style="font:12px/1.4 system-ui">Reach the ruined tower alive. Forest squares cost 2 movement and mountain squares cost 3. A fresh roll still guarantees one legal step. The map now uses denser obstacle islands, but each one leaves a visible route around it, so a longer low-cost path always exists.</div><button class="danger" id="restart" style="width:100%;margin-top:8px">RESTART JOURNEY</button></div></div>
+<div class="legend">Obstacle terrain is denser, but every mountain and forest mass has an open way around it. Open ground has no modifier. Forest gives −1 movement; mountains give −2. Every fresh roll always allows at least 1 move. Entering a new terrain type partway through a move applies its modifier immediately.</div>
+<div class="details"><div class="panel"><h2>JOURNEY</h2><div class="log" id="log"></div></div><div class="panel"><h2>PROTOTYPE RULE</h2><div style="font:12px/1.4 system-ui">Reach the ruined tower alive. Roll d6 for movement. If the turn begins in forest, subtract 1; if it begins in mountains, subtract 2; the result can never be lower than 1. If you enter forest or mountains partway through a move, apply that terrain modifier immediately to the movement you have left. The modifier applies once when that terrain becomes active, not once per square.</div><button class="danger" id="restart" style="width:100%;margin-top:8px">RESTART JOURNEY</button></div></div>
 </div>
 <div class="overlay hidden" id="overlay"><div class="card"><h2 id="ctitle"></h2><p id="cintro"></p><div id="coutcome"></div><button class="primary" id="croll">ROLL d6</button><button class="primary hidden" id="continue">CONTINUE</button><button class="hidden" id="cancelRiver">CANCEL CROSSING</button></div></div>
 <script>
@@ -84,7 +84,6 @@ function die(){return Math.floor(Math.random()*6)+1}
 function tAt(x,y){return terrain.get(key(x,y))||'plain'}
 function moveTerrain(t){return t==='forest'?'forest':t==='mountain'?'mountain':'open'}
 function terrainName(t){return t==='forest'?'Forest':t==='mountain'?'Mountain':'Open'}
-function stepCost(t){return t==='forest'?2:t==='mountain'?3:1}
 function terrainPenalty(t){return t==='forest'?1:t==='mountain'?2:0}
 function svgEl(n,a={}){const e=document.createElementNS('http://www.w3.org/2000/svg',n);for(const[k,v]of Object.entries(a))e.setAttribute(k,v);return e}
 function jitter(seed,range){const q=Math.sin(seed*12.9898+78.233)*43758.5453;return((q-Math.floor(q))*2-1)*range}
@@ -131,10 +130,14 @@ function drawMap(){
    }
  });
  let i=0; for(const[k,t] of terrain){const [x,y]=k.split(',').map(Number); if(t!=='forest') continue;
-   const cx=x*S+16+jitter(i,2.2), b=y*S+29+jitter(i+10,1.4), top=b-(22+jitter(i+20,2.5)), w=8+jitter(i+30,1.2);
-   svg.append(svgEl('path',{d:`M ${cx} ${b} L ${cx} ${top+7}`,...pencil,'stroke-width':'1'}));
-   [0,4,8,12,16].forEach((off,idx)=>{const yy=top+off, ww=w*(1-idx*0.12)+jitter(i+idx,0.6); svg.append(svgEl('path',{d:`M ${cx} ${yy} L ${cx-ww} ${yy+5} L ${cx-ww*0.16} ${yy+4} M ${cx} ${yy} L ${cx+ww*0.92} ${yy+5} L ${cx+ww*0.14} ${yy+4}`,...pencil,'stroke-width':idx===0?'1.05':'1'}));});
-   if(i%3===0) svg.append(svgEl('path',{d:`M ${cx-10} ${b+3} q 6 1 12 0`,...faint,'stroke-width':'.55'}));
+   const cx=x*S+16+jitter(i,2.0), b=y*S+29+jitter(i+10,1.2), top=b-(23+jitter(i+20,2.2)), w=9+jitter(i+30,1.1);
+   svg.append(svgEl('path',{d:`M ${cx} ${b} L ${cx} ${top+5}`,...pencil,'stroke-width':'1'}));
+   [0,4,8,12,16].forEach((off,idx)=>{
+     const yy=top+off, ww=w*(0.42+idx*0.16)+jitter(i+idx,0.45);
+     svg.append(svgEl('path',{d:`M ${cx} ${yy} L ${cx-ww} ${yy+5} L ${cx-ww*0.18} ${yy+4} M ${cx} ${yy} L ${cx+ww*0.92} ${yy+5} L ${cx+ww*0.16} ${yy+4}`,...pencil,'stroke-width':idx===4?'1.05':'1'}));
+   });
+   svg.append(svgEl('path',{d:`M ${cx-w*0.9} ${b-1} Q ${cx} ${b+2} ${cx+w*0.9} ${b-1}`,...faint,'stroke-width':'.5'}));
+   if(i%3===0) svg.append(svgEl('path',{d:`M ${cx-9} ${b+3} q 5 1 10 0`,...faint,'stroke-width':'.5'}));
    i++;
  }
  i=0; for(const[k,t] of terrain){const [x,y]=k.split(',').map(Number); if(t!=='mountain') continue;
@@ -160,15 +163,25 @@ function beginRiver(dx,dy){riverAttempt={dx,dy,rolled:null};modalMode='river';$(
 function attemptMove(x,y){
  if(!canAct()||x<0||y<0||x>=W||y>=H)return;
  if(Math.abs(x-player.x)+Math.abs(y-player.y)!==1)return;
- const t=tAt(x,y);
- if(t==='river'){beginRiver(x-player.x,y-player.y);return}
- const mt=moveTerrain(t),cost=stepCost(mt),isFirst=stepsThisRoll===0;
- if(move<cost&&!isFirst){msg(`${terrainName(mt)} costs ${cost} movement to enter. You have ${move} remaining.`);note(`Could not enter ${terrainName(mt).toLowerCase()}: ${cost} movement required, ${move} remaining.`);return}
+ const oldT=moveTerrain(tAt(player.x,player.y));
+ const rawT=tAt(x,y);
+ if(rawT==='river'){beginRiver(x-player.x,y-player.y);return}
+ const newT=moveTerrain(rawT);
  player={x,y};
- const spent=Math.min(move,cost);move=Math.max(0,move-cost);stepsThisRoll++;
- const p=terrainPenalty(mt);
- if(p){const minimumNote=(spent<cost&&isFirst)?' Minimum-one-step rule used.':'';msg(`Entered ${terrainName(mt)}: 1 movement + ${p} terrain penalty = ${cost}.${minimumNote} ${move} movement remaining.`);note(`Entered ${terrainName(mt)}. Cost ${cost}.${minimumNote}`)}
- else{msg(`Moved across open ground. 1 movement spent. ${move} remaining.`);note('Moved across open ground. Cost 1.')}
+ move=Math.max(0,move-1);
+ stepsThisRoll++;
+ let entryPenalty=0;
+ if(newT!==oldT && newT!=='open'){
+   entryPenalty=terrainPenalty(newT);
+   move=Math.max(0,move-entryPenalty);
+ }
+ if(entryPenalty>0){
+   msg(`Entered ${terrainName(newT)}: terrain modifier −${entryPenalty}. ${move} movement remaining.`);
+   note(`Entered ${terrainName(newT)}. Applied −${entryPenalty} movement modifier.`);
+ } else {
+   msg(`Moved 1 square. ${move} movement remaining.`);
+   note(`Moved 1 square through ${terrainName(newT).toLowerCase()} terrain.`);
+ }
  if(x===dest.x&&y===dest.y){done=true;ending(true);render();save();return}
  if(move===0)endTurn();render();save()
 }
@@ -176,7 +189,7 @@ map.addEventListener('pointerup',e=>{const r=map.getBoundingClientRect();attempt
 document.querySelectorAll('[data-dir]').forEach(b=>b.addEventListener('click',()=>{const[dx,dy]=b.dataset.dir.split(',').map(Number);attemptMove(player.x+dx,player.y+dy)}));
 function endTurn(){turn++;if(Math.random()<.55){enc=encounters[Math.floor(Math.random()*encounters.length)];showEncounter()}else{msg('The road is quiet. Roll again.');note(`Turn ${turn}: the road was quiet.`)}}
 function showEncounter(){modalMode='encounter';$('overlay').classList.remove('hidden');$('ctitle').textContent=enc[0];$('cintro').textContent=enc[1];$('coutcome').textContent='Roll to see what happens.';$('croll').textContent='ROLL d6';$('croll').classList.remove('hidden');$('continue').classList.add('hidden');$('cancelRiver').classList.add('hidden');note(`Turn ${turn}: encountered ${enc[0].toLowerCase()}.`)}
-$('roll').addEventListener('click',()=>{if(done||enc||riverAttempt||move)return;last=die();move=last;stepsThisRoll=0;const text=`Rolled ${last}. You have ${move} movement. Terrain costs apply as soon as you enter each square.`;msg(text);note(text);render();save()});
+$('roll').addEventListener('click',()=>{if(done||enc||riverAttempt||move)return;last=die();stepsThisRoll=0;const startT=moveTerrain(tAt(player.x,player.y));const penalty=terrainPenalty(startT);move=Math.max(1,last-penalty);const modText=penalty?` ${terrainName(startT)} −${penalty}.`:'';const text=`Rolled ${last}.${modText} Move ${move}.`;msg(text);note(text);render();save()});
 $('end').addEventListener('click',()=>{if(move>0&&!enc&&!riverAttempt&&!done){move=0;endTurn();render();save()}});
 $('croll').addEventListener('click',()=>{
  if(modalMode==='river'&&riverAttempt){
@@ -201,11 +214,11 @@ $('continue').addEventListener('click',()=>{
  }
  $('overlay').classList.add('hidden'); enc=null; modalMode=null; if(done) ending(false); else msg('Roll the die for your next move.'); render(); save()
 });
-function ending(win){modalMode='ending';$('overlay').classList.remove('hidden');$('ctitle').textContent=win?'YOU MADE IT':'THE JOURNEY ENDS';$('cintro').textContent=win?'You reached the ruined tower.':'You ran out of health before reaching the tower.';$('coutcome').textContent=win?'For prototype 0.7 clear paths, that is victory.':'The poster-board traveler has fallen.';$('croll').classList.add('hidden');$('continue').classList.add('hidden');$('cancelRiver').classList.add('hidden')}
+function ending(win){modalMode='ending';$('overlay').classList.remove('hidden');$('ctitle').textContent=win?'YOU MADE IT':'THE JOURNEY ENDS';$('cintro').textContent=win?'You reached the ruined tower.':'You ran out of health before reaching the tower.';$('coutcome').textContent=win?'For prototype 0.8 terrain modifiers, that is victory.':'The poster-board traveler has fallen.';$('croll').classList.add('hidden');$('continue').classList.add('hidden');$('cancelRiver').classList.add('hidden')}
 function render(){token.style.left=`${player.x*S+4}px`;token.style.top=`${player.y*S+4}px`;$('health').textContent=`Health ${health}/${MAX_HEALTH}`;$('terrain').textContent=`Terrain ${terrainName(moveTerrain(tAt(player.x,player.y)))}`;$('movement').textContent=`Movement ${move}`;$('last').textContent=`Last roll ${last??'—'}`;$('roll').disabled=done||!!enc||!!riverAttempt||move>0;$('end').disabled=done||!!enc||!!riverAttempt||move<=0;document.querySelectorAll('[data-dir]').forEach(b=>b.disabled=!canAct())}
-function save(){localStorage.setItem('pbq07clean',JSON.stringify({player,move,health,last,done,turn,stepsThisRoll}))}
-function load(){try{const s=JSON.parse(localStorage.getItem('pbq07clean'));if(!s)return;player=s.player||player;move=s.move||0;health=Number.isFinite(s.health)?s.health:MAX_HEALTH;last=s.last??null;done=!!s.done;turn=s.turn||0;stepsThisRoll=s.stepsThisRoll||0;msg('Journey restored from this device.');note('Saved journey restored.')}catch(_){} }
-function restart(){localStorage.removeItem('pbq07clean');location.reload()}
+function save(){localStorage.setItem('pbq08clean',JSON.stringify({player,move,health,last,done,turn,stepsThisRoll}))}
+function load(){try{const s=JSON.parse(localStorage.getItem('pbq08clean'));if(!s)return;player=s.player||player;move=s.move||0;health=Number.isFinite(s.health)?s.health:MAX_HEALTH;last=s.last??null;done=!!s.done;turn=s.turn||0;stepsThisRoll=s.stepsThisRoll||0;msg('Journey restored from this device.');note('Saved journey restored.')}catch(_){} }
+function restart(){localStorage.removeItem('pbq08clean');location.reload()}
 $('restart').addEventListener('click',restart);load();render();requestAnimationFrame(()=>{viewport.scrollLeft=Math.max(0,player.x*S-viewport.clientWidth/2);viewport.scrollTop=Math.max(0,player.y*S-viewport.clientHeight/2)});
 </script>
 </body></html>
