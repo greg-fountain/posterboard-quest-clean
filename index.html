@@ -1,224 +1,27 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#eee3c4">
-<title>Posterboard Quest — Web Prototype 0.8 Terrain Modifiers</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Posterboard Quest 0.9</title>
 <style>
-:root{--paper:#eee3c4;--paper2:#f8efd7;--ink:#2e2a23;--line:#807764;--shadow:rgba(46,42,35,.18)}
-*{box-sizing:border-box} html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}
-body{font-family:Georgia,serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
-button{font:700 16px system-ui,-apple-system,sans-serif;color:var(--ink);background:#fff8e8;border:1px solid #665e4d;border-radius:10px;min-height:48px;padding:10px 14px;touch-action:manipulation}
-button:disabled{opacity:.42}.primary{background:var(--ink);color:white}.danger{background:#fff3ee}
-#app{max-width:960px;margin:0 auto;padding:max(10px,env(safe-area-inset-top)) 10px max(14px,env(safe-area-inset-bottom))}
-header{text-align:center}h1{font-size:25px;letter-spacing:.04em;margin:4px 0}.subtitle{font:12px system-ui;opacity:.68;margin-bottom:8px}
-.stats{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;font:600 13px system-ui;margin:8px 0}.pill{background:#ffffff70;border:1px solid #8a806b;border-radius:999px;padding:6px 10px}
-#message{min-height:42px;font:15px/1.35 system-ui;margin:6px auto 8px;max-width:700px}
-.viewport{height:56vh;min-height:300px;max-height:640px;overflow:auto;border:1px solid #776f5f;border-radius:8px;background:var(--paper2);box-shadow:inset 0 0 24px var(--shadow);-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}
-.map{position:relative;width:896px;height:704px;background-image:linear-gradient(to right,rgba(40,35,28,.16) 1px,transparent 1px),linear-gradient(to bottom,rgba(40,35,28,.16) 1px,transparent 1px);background-size:32px 32px}
-.terrain-art{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}.terrain-art path,.terrain-art line,.terrain-art rect,.terrain-art ellipse,.terrain-art polyline{vector-effect:non-scaling-stroke}
-.label{position:absolute;font:italic 12px Georgia,serif;pointer-events:none;white-space:nowrap;opacity:.88}
-.player{position:absolute;width:24px;height:24px;margin:4px;border:2px solid var(--paper2);border-radius:50%;background:var(--ink);color:white;display:flex;align-items:center;justify-content:center;z-index:5;font:13px system-ui;box-shadow:0 1px 3px #0006;pointer-events:none}
-.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.dpadrow{display:grid;grid-template-columns:repeat(3,52px);justify-content:center;gap:6px;margin:9px 0 0}.dpadrow button{padding:0;font-size:21px}.blank{visibility:hidden}
-.legend{font:12px/1.4 system-ui;opacity:.74;text-align:center;margin:8px 0}.details{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}.panel{background:#ffffff55;border:1px solid #8a806b;border-radius:8px;padding:9px}.panel h2{font:700 13px system-ui;margin:0 0 5px}.log{font:12px/1.35 system-ui;max-height:110px;overflow:auto}.log div{padding:2px 0;border-bottom:1px dotted #8b816c55}
-.overlay{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:18px;z-index:20}.card{background:var(--paper2);border:1px solid #6d634f;border-radius:12px;padding:24px;max-width:390px;width:100%;text-align:center;box-shadow:0 18px 60px #0008}.card h2{margin-top:0}.card button{width:100%;margin-top:8px}.hidden{display:none!important}
-@media(min-width:760px){.details{grid-template-columns:1fr 1fr}.viewport{height:60vh}}
-</style>
-</head>
-<body>
-<div id="app">
-<header><h1>POSTERBOARD QUEST</h1><div class="subtitle">web prototype 0.8 terrain modifiers · 28 × 22 pencil-grid journey</div>
-<div class="stats"><span class="pill" id="health">Health 6/6</span><span class="pill" id="terrain">Terrain Open</span><span class="pill" id="movement">Movement 0</span><span class="pill" id="last">Last roll —</span></div>
-<div id="message">Roll the die to begin your journey.</div></header>
-<div class="viewport" id="viewport"><div class="map" id="map"></div></div>
-<div class="controls"><button class="primary" id="roll">ROLL d6</button><button id="end">END MOVE</button></div>
-<div class="dpadrow"><span class="blank"></span><button data-dir="0,-1" aria-label="Move north">↑</button><span class="blank"></span><button data-dir="-1,0" aria-label="Move west">←</button><button data-dir="0,1" aria-label="Move south">↓</button><button data-dir="1,0" aria-label="Move east">→</button></div>
-<div class="legend">Obstacle terrain is denser, but every mountain and forest mass has an open way around it. Open ground has no modifier. Forest gives −1 movement; mountains give −2. Every fresh roll always allows at least 1 move. Entering a new terrain type partway through a move applies its modifier immediately.</div>
-<div class="details"><div class="panel"><h2>JOURNEY</h2><div class="log" id="log"></div></div><div class="panel"><h2>PROTOTYPE RULE</h2><div style="font:12px/1.4 system-ui">Reach the ruined tower alive. Roll d6 for movement. If the turn begins in forest, subtract 1; if it begins in mountains, subtract 2; the result can never be lower than 1. If you enter forest or mountains partway through a move, apply that terrain modifier immediately to the movement you have left. The modifier applies once when that terrain becomes active, not once per square.</div><button class="danger" id="restart" style="width:100%;margin-top:8px">RESTART JOURNEY</button></div></div>
-</div>
-<div class="overlay hidden" id="overlay"><div class="card"><h2 id="ctitle"></h2><p id="cintro"></p><div id="coutcome"></div><button class="primary" id="croll">ROLL d6</button><button class="primary hidden" id="continue">CONTINUE</button><button class="hidden" id="cancelRiver">CANCEL CROSSING</button></div></div>
+:root{--paper:#eee3c4;--paper2:#f8efd7;--ink:#2d2922;--line:#746b59;--green:#365f46;--blue:#4d7f9b}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Georgia,serif}button{font:700 16px system-ui;background:#fff8e8;color:var(--ink);border:1px solid #675f50;border-radius:9px;min-height:48px;padding:8px 14px}button:disabled{opacity:.4}.primary{background:var(--ink);color:#fff}#app{max-width:1180px;margin:auto;padding:10px}header{text-align:center}h1{margin:2px;font-size:28px;letter-spacing:.04em}.sub{font:12px system-ui;opacity:.65}.stats{display:flex;justify-content:center;gap:7px;flex-wrap:wrap;margin:9px}.pill{border:1px solid #887e69;border-radius:999px;padding:5px 10px;background:#fff7df88;font:600 13px system-ui}#msg{min-height:34px;font:15px system-ui}.game{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:10px}.viewport{overflow:auto;border:1px solid var(--line);border-radius:7px;background:var(--paper2);max-height:610px}.map{position:relative;width:896px;height:704px;background-image:linear-gradient(to right,#40382b26 1px,transparent 1px),linear-gradient(to bottom,#40382b26 1px,transparent 1px);background-size:32px 32px}.art{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.player{position:absolute;width:24px;height:24px;margin:4px;border:2px solid #fff3d6;border-radius:50%;background:var(--ink);color:white;display:grid;place-items:center;z-index:4}.side{display:flex;flex-direction:column;gap:10px}.piles{display:grid;grid-template-columns:1fr 1fr;gap:7px}.pile,.discard{height:128px;border:2px solid var(--ink);border-radius:8px;background:#f7edd1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font:700 13px system-ui;padding:5px}.pile{box-shadow:4px 4px 0 #c8b994,7px 7px 0 #e2d4b3}.discard{border-style:dashed}.big{font:700 22px Georgia}.types{border:1px solid var(--line);padding:8px;border-radius:7px;background:#fff6df80;font:12px/1.55 system-ui}.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.dpad{display:grid;grid-template-columns:repeat(3,50px);gap:5px;justify-content:center;margin:8px}.dpad .blank{visibility:hidden}.dpad button{font-size:20px;padding:0}.handtitle{font:700 13px system-ui;margin:8px 0 5px}.hand{display:grid;grid-template-columns:repeat(4,minmax(100px,1fr));gap:7px}.gcard{min-height:145px;border:2px solid var(--ink);border-radius:8px;background:#f8efd7;padding:7px;display:flex;flex-direction:column;justify-content:space-between;text-align:center;box-shadow:1px 2px 0 #bcae8d}.gcard .rank{text-align:left;font:bold 19px Georgia}.gcard .icon{font-size:34px;line-height:1}.gcard .name{font:bold 13px system-ui}.gcard .value{font:bold 18px Georgia}.monster .icon{font-size:31px}.legend{text-align:center;font:12px/1.4 system-ui;opacity:.72;margin:7px}.overlay{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:20px;z-index:20}.modal{max-width:390px;width:100%;background:var(--paper2);border:1px solid #655c4b;border-radius:12px;padding:22px;text-align:center}.hidden{display:none!important}@media(max-width:760px){.game{grid-template-columns:1fr}.side{display:grid;grid-template-columns:190px 1fr}.hand{overflow-x:auto;grid-template-columns:repeat(4,130px)}h1{font-size:24px}}
+</style></head><body><div id="app"><header><h1>POSTERBOARD QUEST</h1><div class="sub">ROLL · MOVE · DRAW · SURVIVE</div><div class="stats"><span class="pill" id="health">Health 6/6</span><span class="pill" id="terrain">Terrain Open</span><span class="pill" id="movement">Movement 0</span><span class="pill" id="last">Last roll —</span></div><div id="msg">Your opening hand has been dealt. Roll the die to begin.</div></header>
+<div class="game"><div><div class="viewport" id="viewport"><div class="map" id="map"></div></div><div class="controls"><button class="primary" id="roll">ROLL d6</button><button id="end">END MOVE</button></div><div class="dpad"><i class="blank"></i><button data-d="0,-1">↑</button><i class="blank"></i><button data-d="-1,0">←</button><button data-d="0,1">↓</button><button data-d="1,0">→</button></div></div>
+<aside class="side"><div class="piles"><div class="pile"><div class="big">✦</div><div>DECK</div><div id="deckcount">48 cards</div></div><div class="discard" id="discard"><div>DISCARD</div><div style="font-size:26px">☠</div><small>empty</small></div></div><div class="types"><b>CARD TYPES</b><br>⚔ Weapons (+1,+2,+3)<br>☠ Monsters (−1,−2,−3)<br>☣ Cursed weapons (−1,−2,−3)<br>▣ Treasure (various)</div></aside></div>
+<div class="handtitle">YOUR HAND <span id="handcount">(4/4)</span></div><div class="hand" id="hand"></div><div class="legend">Forest: −1 movement when entered or active. Mountains: −2. A fresh roll always permits at least one step. Bridges cross normally; river crossings interrupt movement.</div><div style="text-align:center"><button id="restart">RESTART JOURNEY</button></div></div>
+<div class="overlay hidden" id="overlay"><div class="modal"><h2>RIVER CROSSING</h2><p id="rivertext">The current looks dangerous. Roll to see what happens.</p><button class="primary" id="riverroll">ROLL d6</button><button id="rivercontinue" class="hidden">CONTINUE</button><button id="rivercancel">CANCEL CROSSING</button></div></div>
 <script>
-'use strict';
-const W=28,H=22,S=32,MAX_HEALTH=6;
-let player={x:1,y:20},dest={x:25,y:1},move=0,health=MAX_HEALTH,last=null,enc=null,done=false,turn=0,riverAttempt=null,modalMode=null,stepsThisRoll=0;
-const terrain=new Map(), key=(x,y)=>`${x},${y}`; const set=(t,x,y)=>terrain.set(key(x,y),t);
-set('village',1,20); set('tower',25,1);
-for(let y=0;y<H;y++) set('river',13,y); set('bridge',13,6); set('bridge',13,17);
-[
- [2,1],[3,1],[4,1],[5,1],[2,2],[3,2],[4,2],[5,2],[3,3],[4,3],
- [8,2],[9,2],[10,2],[11,2],[9,1],[10,1],[11,1],[8,3],[9,3],[10,3],
- [7,5],[8,5],[9,5],[10,5],[7,6],[8,6],[9,6],[10,6],[8,7],[9,7],
- [2,14],[3,14],[4,14],[5,14],[2,15],[3,15],[4,15],[5,15],[3,16],[4,16],[5,16],
- [7,17],[8,17],[9,17],[10,17],[7,18],[8,18],[9,18],[8,19],[9,19],
- [18,3],[19,3],[20,3],[18,4],[19,4],[20,4],[19,2],
- [22,8],[23,8],[24,8],[25,8],[22,9],[23,9],[24,9],[25,9],[23,10],[24,10],[25,10],
- [20,16],[21,16],[22,16],[23,16],[24,16],[21,17],[22,17],[23,17],[24,17],[22,18],[23,18],[24,18],
- [17,19],[18,19],[19,19],[18,20],[19,20]
-].forEach(p=>set('forest',...p));
-[
- [17,5],[18,5],[19,5],[17,6],[18,6],[19,6],[18,7],
- [20,4],[21,4],[22,4],[20,5],[21,5],[22,5],[21,6],[22,6],[23,6],
- [19,8],[20,8],[21,8],[19,9],[20,9],[21,9],[20,10],
- [17,11],[18,11],[19,11],[18,12],[19,12],[20,12],[18,13],[19,13],
- [21,12],[22,12],[23,12],[22,13],[23,13],[24,13],[21,14],[22,14],[23,14],[22,15],
- [23,2],[24,2],[25,2],[24,1]
-].forEach(p=>set('mountain',...p));
-const encounters=[
-['BANDITS','Three men step from the trees and block the road.',[['They attack before you can speak. Lose 2 health.',-2],['They rough you up. Lose 1 health.',-1],['They demand a toll, then let you pass.',0],['They decide you are not worth the trouble.',0],['They share their supper. Gain 1 health.',1],['Their leader points out a safer trail. Gain 1 health.',1]]],
-['ORC','An orc lumbers onto the path, gripping a chipped axe.',[['The orc catches you badly off guard. Lose 2 health.',-2],['You trade blows before driving it away. Lose 1 health.',-1],['After a tense standoff, it retreats.',0],['You frighten it off with a lucky feint.',0],['You defeat it and find provisions. Gain 1 health.',1],['It flees, dropping food. Gain 1 health.',1]]],
-['FAIRY','A tiny light circles your head and becomes a fairy.',[['She takes offense. Lose 1 health.',-1],['She laughs and vanishes.',0],['She warns you of trouble ahead.',0],['She tells you a completely useless riddle.',0],['She eases your weariness. Gain 1 health.',1],['She leaves a warm little cake. Gain 1 health.',1]]],
-['TROLL','A troll crouches beside the road, deciding whether you are dinner.',[['It decides yes. You escape, barely. Lose 2 health.',-2],['A thrown stone catches you. Lose 1 health.',-1],['You hide until it wanders away.',0],['You distract it and slip past.',0],['It is asleep; you steal a loaf. Gain 1 health.',1],['A storm scares it away; you find food. Gain 1 health.',1]]],
-['OLD WOMAN','An old woman sits beside the road with a basket on her knees.',[['She curses your manners. Lose 1 health.',-1],['She asks a question you cannot answer.',0],['She gives you uncertain directions.',0],['You talk for a while. The road feels less lonely.',0],['She gives you an apple. Gain 1 health.',1],['She insists you eat. Gain 1 health.',1]]]
-];
-const RIVER_RESULTS={
-  1:{title:'The current takes you.', text:'You are swept away and drowned. The journey ends here.', cross:false, end:true, kill:true},
-  2:{title:'A brutal crossing.', text:'You make the far bank, but the effort costs all of your remaining movement.', cross:true, penalty:'all', end:false},
-  3:{title:'A punishing crossing.', text:'You make the far bank, but lose 3 movement.', cross:true, penalty:3, end:false},
-  4:{title:'A rough crossing.', text:'You make the far bank, but lose 2 movement.', cross:true, penalty:2, end:false},
-  5:{title:'A wobbly crossing.', text:'You make the far bank, but lose 1 movement.', cross:true, penalty:1, end:false},
-  6:{title:'A clean crossing.', text:'You cross safely with no movement penalty.', cross:true, penalty:0, end:false}
-};
-const $=id=>document.getElementById(id), map=$('map'), viewport=$('viewport');
-function die(){return Math.floor(Math.random()*6)+1}
-function tAt(x,y){return terrain.get(key(x,y))||'plain'}
-function moveTerrain(t){return t==='forest'?'forest':t==='mountain'?'mountain':'open'}
-function terrainName(t){return t==='forest'?'Forest':t==='mountain'?'Mountain':'Open'}
-function terrainPenalty(t){return t==='forest'?1:t==='mountain'?2:0}
-function svgEl(n,a={}){const e=document.createElementNS('http://www.w3.org/2000/svg',n);for(const[k,v]of Object.entries(a))e.setAttribute(k,v);return e}
-function jitter(seed,range){const q=Math.sin(seed*12.9898+78.233)*43758.5453;return((q-Math.floor(q))*2-1)*range}
-function drawMap(){
- const svg=svgEl('svg',{class:'terrain-art',viewBox:`0 0 ${W*S} ${H*S}`});
- const pencil={fill:'none',stroke:'#4b473f','stroke-width':'1.02','stroke-linecap':'round','stroke-linejoin':'round'};
- const strong={fill:'none',stroke:'#35312b','stroke-width':'1.2','stroke-linecap':'round','stroke-linejoin':'round'};
- const faint={fill:'none',stroke:'#6f695a','stroke-width':'.72','stroke-linecap':'round','stroke-linejoin':'round',opacity:'.55'};
- let bd='';
- for(let x=3;x<=893;x+=18){const y=4+jitter(x,1.5);bd+=`L ${x} ${y} `}
- for(let y=4;y<=701;y+=18){const x=893+jitter(y+10,1.6);bd+=`L ${x} ${y} `}
- for(let x=893;x>=3;x-=18){const y=701+jitter(x+20,1.6);bd+=`L ${x} ${y} `}
- for(let y=701;y>=4;y-=18){const x=3+jitter(y+30,1.4);bd+=`L ${x} ${y} `}
- svg.append(svgEl('path',{d:`M 3 4 ${bd} Z`,...strong,'stroke-width':'1.1'}));
- let left='M 398 0 ', right='M 430 0 ';
- for(let y=0;y<=704;y+=26){left+=`L ${398+jitter(y*1.7,7)} ${y} `; right+=`L ${430+jitter(y*1.8+90,7)} ${y} `}
- svg.append(svgEl('path',{d:left,...strong,'stroke-width':'1.25'}));
- svg.append(svgEl('path',{d:right,...strong,'stroke-width':'1.25'}));
- for(let y=10;y<700;y+=22){const cx=414+jitter(y+200,2.5);svg.append(svgEl('path',{d:`M ${cx-10} ${y} q 6 -2 12 0 q 6 2 12 0`,...faint,'stroke-width':'.6'}));}
- for(let y=16;y<692;y+=34){const lx=397+jitter(y+45,1.8), rx=431+jitter(y+75,1.8);svg.append(svgEl('path',{d:`M ${lx-6} ${y} q -4 2 -8 0 M ${rx+6} ${y+2} q 4 2 8 0`,...faint,'stroke-width':'.7'}));}
- [6,17].forEach((gy,idx)=>{const cy=gy*S+16,cx=414;svg.append(svgEl('path',{d:`M ${cx-20} ${cy-11} Q ${cx} ${cy-15} ${cx+20} ${cy-11} M ${cx-20} ${cy+11} Q ${cx} ${cy+15} ${cx+20} ${cy+11}`,...strong})); for(let x=-16;x<=16;x+=4){svg.append(svgEl('line',{x1:cx+x,y1:cy-10,x2:cx+x+1,y2:cy+10,...faint}));} svg.append(svgEl('path',{d:`M ${cx-22} ${cy-6} q 2 -5 5 -6 M ${cx+17} ${cy-6} q 2 -5 5 -6 M ${cx-22} ${cy+6} q 2 5 5 6 M ${cx+17} ${cy+6} q 2 5 5 6`,...faint}));});
- let g=1;
- for(let y=1;y<H;y++){
-   for(let x=1;x<W;x++){
-     const t=tAt(x,y); if(t!=='plain'&&t!=='village'&&t!=='tower') continue;
-     const gate=(Math.sin((x*31+y*53)*0.51)+1)/2; if(gate<0.63) continue;
-     const cx=x*S+8+jitter(g,8), cy=y*S+23+jitter(g+2,6); let d=''; const n=2+(g%4);
-     for(let k=0;k<n;k++){const ox=k*2.2; d+=`M ${cx+ox} ${cy} l ${jitter(g+k+9,.8)} ${-4-jitter(g+k+11,1.8)} `}
-     svg.append(svgEl('path',{d,...faint,'stroke-width':'.6'})); g++;
-   }
- }
- [[6,4,'stones'],[3,8,'ruins'],[8,8,'ruins'],[10,11,'pond'],[24,14,'pond'],[15,1,'stones'],[26,5,'stones'],[11,19,'deadtree']].forEach(([x,y,kind],i)=>{
-   const cx=x*S+16, cy=y*S+16;
-   if(kind==='stones'){
-     svg.append(svgEl('ellipse',{cx:cx-7,cy:cy+6,rx:3.5,ry:2.5,...faint})); svg.append(svgEl('ellipse',{cx:cx+3,cy:cy+3,rx:4,ry:3,...faint})); svg.append(svgEl('ellipse',{cx:cx+10,cy:cy+7,rx:2.8,ry:2,...faint}));
-   } else if(kind==='ruins'){
-     svg.append(svgEl('path',{d:`M ${cx-12} ${cy+10} L ${cx-10} ${cy-4} L ${cx-6} ${cy-7} L ${cx-4} ${cy+10} M ${cx+2} ${cy+10} L ${cx+4} ${cy-1} L ${cx+8} ${cy-5} L ${cx+10} ${cy+10}`,...faint}));
-     svg.append(svgEl('path',{d:`M ${cx-16} ${cy+11} q 10 -3 20 0 q 10 3 20 0`,...faint,'stroke-width':'.55'}));
-   } else if(kind==='pond'){
-     svg.append(svgEl('path',{d:`M ${cx-18} ${cy+3} q 6 -10 20 -8 q 9 1 13 8 q 2 8 -6 11 q -5 5 -13 4 q -10 1 -14 -4 q -6 -3 0 -11 Z`,...faint}));
-     svg.append(svgEl('path',{d:`M ${cx-10} ${cy-4} q 1 -5 3 -6 M ${cx+11} ${cy+2} q 1 -5 3 -6`,...faint,'stroke-width':'.55'}));
-   } else if(kind==='deadtree'){
-     svg.append(svgEl('path',{d:`M ${cx} ${cy+12} L ${cx+2} ${cy-6} M ${cx+1} ${cy-1} l -8 -5 M ${cx+1} ${cy-2} l 7 -6 M ${cx-3} ${cy+3} l -8 3 M ${cx+2} ${cy+5} l 8 4`,...faint}));
-   }
- });
- let i=0; for(const[k,t] of terrain){const [x,y]=k.split(',').map(Number); if(t!=='forest') continue;
-   const cx=x*S+16+jitter(i,2.0), b=y*S+29+jitter(i+10,1.2), top=b-(23+jitter(i+20,2.2)), w=9+jitter(i+30,1.1);
-   svg.append(svgEl('path',{d:`M ${cx} ${b} L ${cx} ${top+5}`,...pencil,'stroke-width':'1'}));
-   [0,4,8,12,16].forEach((off,idx)=>{
-     const yy=top+off, ww=w*(0.42+idx*0.16)+jitter(i+idx,0.45);
-     svg.append(svgEl('path',{d:`M ${cx} ${yy} L ${cx-ww} ${yy+5} L ${cx-ww*0.18} ${yy+4} M ${cx} ${yy} L ${cx+ww*0.92} ${yy+5} L ${cx+ww*0.16} ${yy+4}`,...pencil,'stroke-width':idx===4?'1.05':'1'}));
-   });
-   svg.append(svgEl('path',{d:`M ${cx-w*0.9} ${b-1} Q ${cx} ${b+2} ${cx+w*0.9} ${b-1}`,...faint,'stroke-width':'.5'}));
-   if(i%3===0) svg.append(svgEl('path',{d:`M ${cx-9} ${b+3} q 5 1 10 0`,...faint,'stroke-width':'.5'}));
-   i++;
- }
- i=0; for(const[k,t] of terrain){const [x,y]=k.split(',').map(Number); if(t!=='mountain') continue;
-   const cx=x*S+16+jitter(i+100,2.4), b=y*S+28+jitter(i+120,1.8), h=20+jitter(i+140,2.8), w=12+jitter(i+160,1.7), peak=cx+jitter(i+180,1.9);
-   svg.append(svgEl('path',{d:`M ${cx-w} ${b} L ${peak} ${b-h} L ${cx+w} ${b}`,...strong,'stroke-width':'1.1'}));
-   svg.append(svgEl('path',{d:`M ${peak-1} ${b-h+3} L ${peak-6} ${b-h+10} L ${peak-1} ${b-h+8} L ${peak+2} ${b-h+12}`,...pencil,'stroke-width':'.9'}));
-   svg.append(svgEl('path',{d:`M ${peak+3} ${b-h+12} L ${cx+w-4} ${b-2}`,...faint,'stroke-width':'.8'}));
-   if(i%2===0){svg.append(svgEl('path',{d:`M ${cx-w+2} ${b} q 5 -3 10 -1`,...faint,'stroke-width':'.55'}));}
-   i++;
- }
- svg.append(svgEl('path',{d:`M 36 668 L 36 655 L 48 647 L 60 655 L 60 668 Z M 45 668 L 45 660 L 51 660 L 51 668 M 40 656 L 48 650 L 57 656`,...strong,'stroke-width':'1.1'}));
- const tx=25*S+4, ty=S+3;
- svg.append(svgEl('path',{d:`M ${tx} ${ty+27} L ${tx+1} ${ty+10} L ${tx+6} ${ty+11} L ${tx+8} ${ty+5} L ${tx+13} ${ty+8} L ${tx+15} ${ty+2} L ${tx+21} ${ty+4} L ${tx+22} ${ty+27} Z M ${tx+7} ${ty+27} L ${tx+7} ${ty+18} L ${tx+13} ${ty+18} L ${tx+13} ${ty+27} M ${tx+3} ${ty+15} l 3 1 M ${tx+15} ${ty+15} l 3 -1`,...strong,'stroke-width':'1.08'}));
- map.append(svg);
-}
-drawMap();
-[['Home',1,20],['Ruined Tower',23.95,1.95]].forEach(([text,x,y])=>{const d=document.createElement('div');d.className='label';d.style.left=`${x*S}px`;d.style.top=`${y*S}px`;d.textContent=text;map.appendChild(d)});
-const token=document.createElement('div');token.className='player';token.textContent='✦';map.appendChild(token);
-function note(text){const d=document.createElement('div');d.textContent=text;$('log').prepend(d)}
-function msg(text){$('message').textContent=text}
-function canAct(){return !done&&!enc&&!riverAttempt&&move>0}
-function beginRiver(dx,dy){riverAttempt={dx,dy,rolled:null};modalMode='river';$('overlay').classList.remove('hidden');$('ctitle').textContent='RIVER CROSSING';$('cintro').textContent='The current looks dangerous.';$('coutcome').textContent='Roll to see what happens.';$('croll').textContent='ROLL d6';$('croll').classList.remove('hidden');$('continue').classList.add('hidden');$('cancelRiver').classList.remove('hidden');note('Attempted a river crossing.');render()}
-function attemptMove(x,y){
- if(!canAct()||x<0||y<0||x>=W||y>=H)return;
- if(Math.abs(x-player.x)+Math.abs(y-player.y)!==1)return;
- const oldT=moveTerrain(tAt(player.x,player.y));
- const rawT=tAt(x,y);
- if(rawT==='river'){beginRiver(x-player.x,y-player.y);return}
- const newT=moveTerrain(rawT);
- player={x,y};
- move=Math.max(0,move-1);
- stepsThisRoll++;
- let entryPenalty=0;
- if(newT!==oldT && newT!=='open'){
-   entryPenalty=terrainPenalty(newT);
-   move=Math.max(0,move-entryPenalty);
- }
- if(entryPenalty>0){
-   msg(`Entered ${terrainName(newT)}: terrain modifier −${entryPenalty}. ${move} movement remaining.`);
-   note(`Entered ${terrainName(newT)}. Applied −${entryPenalty} movement modifier.`);
- } else {
-   msg(`Moved 1 square. ${move} movement remaining.`);
-   note(`Moved 1 square through ${terrainName(newT).toLowerCase()} terrain.`);
- }
- if(x===dest.x&&y===dest.y){done=true;ending(true);render();save();return}
- if(move===0)endTurn();render();save()
-}
-map.addEventListener('pointerup',e=>{const r=map.getBoundingClientRect();attemptMove(Math.floor((e.clientX-r.left)/S),Math.floor((e.clientY-r.top)/S))});
-document.querySelectorAll('[data-dir]').forEach(b=>b.addEventListener('click',()=>{const[dx,dy]=b.dataset.dir.split(',').map(Number);attemptMove(player.x+dx,player.y+dy)}));
-function endTurn(){turn++;if(Math.random()<.55){enc=encounters[Math.floor(Math.random()*encounters.length)];showEncounter()}else{msg('The road is quiet. Roll again.');note(`Turn ${turn}: the road was quiet.`)}}
-function showEncounter(){modalMode='encounter';$('overlay').classList.remove('hidden');$('ctitle').textContent=enc[0];$('cintro').textContent=enc[1];$('coutcome').textContent='Roll to see what happens.';$('croll').textContent='ROLL d6';$('croll').classList.remove('hidden');$('continue').classList.add('hidden');$('cancelRiver').classList.add('hidden');note(`Turn ${turn}: encountered ${enc[0].toLowerCase()}.`)}
-$('roll').addEventListener('click',()=>{if(done||enc||riverAttempt||move)return;last=die();stepsThisRoll=0;const startT=moveTerrain(tAt(player.x,player.y));const penalty=terrainPenalty(startT);move=Math.max(1,last-penalty);const modText=penalty?` ${terrainName(startT)} −${penalty}.`:'';const text=`Rolled ${last}.${modText} Move ${move}.`;msg(text);note(text);render();save()});
-$('end').addEventListener('click',()=>{if(move>0&&!enc&&!riverAttempt&&!done){move=0;endTurn();render();save()}});
-$('croll').addEventListener('click',()=>{
- if(modalMode==='river'&&riverAttempt){
-   const r=die(); riverAttempt.rolled=r; const result=RIVER_RESULTS[r];
-   $('coutcome').innerHTML=`<b>You rolled ${r}</b><br><br>${result.title} ${result.text}`;
-   $('croll').classList.add('hidden'); $('continue').textContent=(r===1)?'CONTINUE':'CROSS RIVER'; $('continue').classList.remove('hidden'); $('cancelRiver').classList.add('hidden'); note(`River roll: ${r}. ${result.title}`); return;
- }
- const r=die(),o=enc[2][r-1];health=Math.max(0,Math.min(MAX_HEALTH,health+o[1]));$('coutcome').innerHTML=`<b>You rolled ${r}</b><br><br>${o[0]}`;$('croll').classList.add('hidden');$('continue').textContent='CONTINUE';$('continue').classList.remove('hidden');note(`${enc[0]} roll ${r}: ${o[0]}`);if(health<=0)done=true;render();save()});
-function closeRiver(){riverAttempt=null;modalMode=null;$('overlay').classList.add('hidden');$('cancelRiver').classList.add('hidden')}
-$('cancelRiver').addEventListener('click',()=>{closeRiver();msg(`You stay on this bank. ${move} movement remaining.`);note('River crossing cancelled.');render()});
-$('continue').addEventListener('click',()=>{
- if(modalMode==='river'){
-   if(!riverAttempt||riverAttempt.rolled===null)return;
-   const r=riverAttempt.rolled, result=RIVER_RESULTS[r];
-   if(result.kill){health=0; done=true; closeRiver(); ending(false); render(); save(); return;}
-   const nx=player.x+riverAttempt.dx*2, ny=player.y+riverAttempt.dy*2; player={x:nx,y:ny}; stepsThisRoll++;
-   if(result.penalty==='all') move=0; else move=Math.max(0,move-result.penalty);
-   note(`Crossed the river on roll ${r}. ${result.text}`); closeRiver();
-   msg(`River result ${r}: ${result.text} ${move} movement remaining.`);
-   if(nx===dest.x&&ny===dest.y){done=true; ending(true); render(); save(); return;}
-   if(move===0) endTurn(); render(); save(); return;
- }
- $('overlay').classList.add('hidden'); enc=null; modalMode=null; if(done) ending(false); else msg('Roll the die for your next move.'); render(); save()
-});
-function ending(win){modalMode='ending';$('overlay').classList.remove('hidden');$('ctitle').textContent=win?'YOU MADE IT':'THE JOURNEY ENDS';$('cintro').textContent=win?'You reached the ruined tower.':'You ran out of health before reaching the tower.';$('coutcome').textContent=win?'For prototype 0.8 terrain modifiers, that is victory.':'The poster-board traveler has fallen.';$('croll').classList.add('hidden');$('continue').classList.add('hidden');$('cancelRiver').classList.add('hidden')}
-function render(){token.style.left=`${player.x*S+4}px`;token.style.top=`${player.y*S+4}px`;$('health').textContent=`Health ${health}/${MAX_HEALTH}`;$('terrain').textContent=`Terrain ${terrainName(moveTerrain(tAt(player.x,player.y)))}`;$('movement').textContent=`Movement ${move}`;$('last').textContent=`Last roll ${last??'—'}`;$('roll').disabled=done||!!enc||!!riverAttempt||move>0;$('end').disabled=done||!!enc||!!riverAttempt||move<=0;document.querySelectorAll('[data-dir]').forEach(b=>b.disabled=!canAct())}
-function save(){localStorage.setItem('pbq08clean',JSON.stringify({player,move,health,last,done,turn,stepsThisRoll}))}
-function load(){try{const s=JSON.parse(localStorage.getItem('pbq08clean'));if(!s)return;player=s.player||player;move=s.move||0;health=Number.isFinite(s.health)?s.health:MAX_HEALTH;last=s.last??null;done=!!s.done;turn=s.turn||0;stepsThisRoll=s.stepsThisRoll||0;msg('Journey restored from this device.');note('Saved journey restored.')}catch(_){} }
-function restart(){localStorage.removeItem('pbq08clean');location.reload()}
-$('restart').addEventListener('click',restart);load();render();requestAnimationFrame(()=>{viewport.scrollLeft=Math.max(0,player.x*S-viewport.clientWidth/2);viewport.scrollTop=Math.max(0,player.y*S-viewport.clientHeight/2)});
-</script>
-</body></html>
+const W=28,H=22,S=32,key=(x,y)=>x+','+y,terrain=new Map(),set=(t,x,y)=>terrain.set(key(x,y),t);let p={x:1,y:20},goal={x:25,y:1},move=0,last=null,health=6,turn=0,steps=0,done=false,riverAttempt=null,deck=[],hand=[],discard=[];
+set('home',1,20);set('goal',25,1);for(let y=0;y<H;y++)set('river',13,y);set('bridge',13,6);set('bridge',13,17);
+[[2,1],[3,1],[4,1],[5,1],[8,2],[9,2],[10,2],[11,2],[7,5],[8,5],[9,5],[10,5],[2,14],[3,14],[4,14],[5,14],[7,17],[8,17],[9,17],[10,17],[18,3],[19,3],[20,3],[22,8],[23,8],[24,8],[25,8],[20,16],[21,16],[22,16],[23,16],[24,16],[17,19],[18,19],[19,19],[3,2],[4,2],[9,3],[10,3],[3,15],[4,15],[8,18],[9,18],[23,9],[24,9],[21,17],[22,17],[23,17]].forEach(a=>set('forest',...a));
+[[17,5],[18,5],[19,5],[20,4],[21,4],[22,4],[19,8],[20,8],[21,8],[17,11],[18,11],[19,11],[21,12],[22,12],[23,12],[23,2],[24,2],[25,2],[18,6],[21,5],[20,9],[18,12],[22,13],[23,13]].forEach(a=>set('mountain',...a));
+const $=x=>document.getElementById(x),tAt=(x,y)=>terrain.get(key(x,y))||'open',mt=t=>t==='forest'?'forest':t==='mountain'?'mountain':'open',pen=t=>t==='forest'?1:t==='mountain'?2:0,die=()=>1+Math.floor(Math.random()*6);
+function makeDeck(){let a=[];const add=(type,name,val,icon,n)=>{for(let i=0;i<n;i++)a.push({type,name,val,icon})};add('weapon','Knife',1,'⚔',5);add('weapon','Sword',2,'⚔',5);add('weapon','Great Axe',3,'⚔',3);add('monster','Goblin',-1,'☠',6);add('monster','Orc',-2,'☠',6);add('monster','Troll',-3,'☠',4);add('curse','Cursed Knife',-1,'☣',3);add('curse','Cursed Mace',-2,'☣',3);add('curse','Cursed Blade',-3,'☣',2);add('treasure','Silver',0,'▣',5);add('treasure','Food',0,'▣',5);add('treasure','Old Map',0,'▣',5);return shuffle(a).slice(0,52)}function shuffle(a){for(let i=a.length-1;i;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}function drawToFour(){while(hand.length<4&&deck.length)hand.push(deck.pop());renderCards()}
+function renderCards(){$('deckcount').textContent=deck.length+' cards';$('handcount').textContent='('+hand.length+'/4)';$('hand').innerHTML=hand.map((c,i)=>`<div class="gcard ${c.type}"><div class="rank">${i+1}</div><div class="icon">${c.icon}</div><div class="name">${c.name}</div><div class="value">${c.type==='treasure'?'TREASURE':(c.val>0?'+':'')+c.val}</div></div>`).join('');let c=discard.at(-1);$('discard').innerHTML=c?`<div>DISCARD</div><div style="font-size:25px">${c.icon}</div><b>${c.name}</b><small>${c.note||''}</small>`:`<div>DISCARD</div><div style="font-size:26px">☠</div><small>empty</small>`}
+function actionCard(){let t=tAt(p.x,p.y),name=t==='forest'?'FOREST TURN':t==='mountain'?'MOUNTAIN TURN':t==='bridge'?'BRIDGE CROSSING':'TRAVEL';discard.push({name,icon:t==='forest'?'♠':t==='mountain'?'▲':t==='bridge'?'═':'→',note:`Turn ${turn}: moved ${steps} square${steps===1?'':'s'}`});renderCards()}
+function art(){let svg=`<svg class="art" viewBox="0 0 896 704" xmlns="http://www.w3.org/2000/svg"><path d="M416 0 C402 100 430 180 412 270 S430 440 414 704 M432 0 C418 100 446 180 428 270 S446 440 430 704" fill="none" stroke="#4d7f9b" stroke-width="5" opacity=".75"/>`;for(let [k,t] of terrain){let[x,y]=k.split(',').map(Number),cx=x*S+16,cy=y*S+17;if(t==='forest'){svg+=`<g stroke="#304c37" fill="none" stroke-width="1.7"><path d="M${cx} ${cy-10} L${cx-7} ${cy+3} L${cx-2} ${cy+1} L${cx-8} ${cy+9} L${cx+8} ${cy+9} L${cx+2} ${cy+1} L${cx+7} ${cy+3} Z"/><path d="M${cx} ${cy+9}v5"/></g>`}if(t==='mountain')svg+=`<path d="M${cx-14} ${cy+10} L${cx} ${cy-11} L${cx+14} ${cy+10} M${cx-4} ${cy-5} L${cx} ${cy-1} L${cx+4} ${cy-5}" fill="none" stroke="#514a40" stroke-width="1.8"/>`;if(t==='bridge')svg+=`<g stroke="#453e34" stroke-width="2"><path d="M${cx-15} ${cy-7}h30M${cx-15} ${cy+7}h30"/>${[-10,-5,0,5,10].map(q=>`<path d="M${cx+q} ${cy-7}v14"/>`).join('')}</g>`}svg+='</svg>';$('map').insertAdjacentHTML('afterbegin',svg);$('map').insertAdjacentHTML('beforeend',`<div style="position:absolute;left:34px;top:645px;font-style:italic">Home</div><div style="position:absolute;left:800px;top:25px;font-style:italic">Goal</div>`)}
+function player(){document.querySelector('.player')?.remove();let d=document.createElement('div');d.className='player';d.textContent='◆';d.style.left=p.x*S+'px';d.style.top=p.y*S+'px';$('map').append(d)}function ui(m){$('health').textContent='Health '+health+'/6';$('terrain').textContent='Terrain '+(mt(tAt(p.x,p.y)).replace(/^./,x=>x.toUpperCase()));$('movement').textContent='Movement '+move;$('last').textContent='Last roll '+(last??'—');if(m)$('msg').textContent=m;$('roll').disabled=done||move>0;$('end').disabled=done||(!move&&!steps);document.querySelectorAll('[data-d]').forEach(b=>b.disabled=done||move<=0);player()}
+function roll(){if(done||move>0)return;last=die();steps=0;let q=pen(mt(tAt(p.x,p.y)));move=Math.max(1,last-q);ui(`Rolled ${last}${q?' · terrain −'+q:''}. You have ${move} movement.`)}
+function attempt(dx,dy){if(done||move<=0)return;let nx=p.x+dx,ny=p.y+dy;if(nx<0||ny<0||nx>=W||ny>=H)return;let nt=tAt(nx,ny);if(nt==='river'){riverAttempt={dx,dy};$('overlay').classList.remove('hidden');return}let before=mt(tAt(p.x,p.y)),after=mt(nt);p={x:nx,y:ny};move--;steps++;if(after!==before&&pen(after)>0)move=Math.max(0,move-pen(after));if(p.x===goal.x&&p.y===goal.y){done=true;ui('You reached the goal. Journey complete!');return}ui(move?`Moved into ${after}. ${move} movement remains.`:'Movement spent. End your turn.')}
+function endTurn(){if(done)return;turn++;actionCard();drawToFour();move=0;steps=0;ui('Turn ended. A record of the turn was placed face up on the discard pile. Roll again.')}
+function riverRoll(){let r=die(),o={1:['The current takes you. You drown.',false,99],2:['You cross, exhausted. Movement ends.',true,99],3:['You cross and lose 3 movement.',true,3],4:['You cross and lose 2 movement.',true,2],5:['You cross and lose 1 movement.',true,1],6:['A clean crossing. No penalty.',true,0]}[r];$('rivertext').textContent=`You rolled ${r}. ${o[0]}`;$('riverroll').classList.add('hidden');$('rivercancel').classList.add('hidden');if(r===1){health=0;done=true;$('rivercontinue').classList.remove('hidden');$('rivercontinue').textContent='CONTINUE'}else{let {dx,dy}=riverAttempt;p={x:p.x+dx*2,y:p.y+dy*2};move=Math.max(0,move-1-o[2]);if(o[2]===99)move=0;steps+=2;$('rivercontinue').classList.remove('hidden')}}function closeRiver(){$('overlay').classList.add('hidden');$('riverroll').classList.remove('hidden');$('rivercancel').classList.remove('hidden');$('rivercontinue').classList.add('hidden');$('rivertext').textContent='The current looks dangerous. Roll to see what happens.';riverAttempt=null;ui(done?'The journey has ended.':move?'You made the far bank.':'Crossing complete. End your turn.')}
+function reset(){p={x:1,y:20};move=0;last=null;health=6;turn=0;steps=0;done=false;discard=[];deck=makeDeck();hand=[];drawToFour();ui('Your opening hand has been dealt. Roll the die to begin.')}
+$('roll').onclick=roll;$('end').onclick=endTurn;$('restart').onclick=reset;document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>attempt(...b.dataset.d.split(',').map(Number)));$('riverroll').onclick=riverRoll;$('rivercontinue').onclick=closeRiver;$('rivercancel').onclick=closeRiver;art();deck=makeDeck();drawToFour();ui();
+</script></body></html>
